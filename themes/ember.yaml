@@ -1,0 +1,309 @@
+# Ember - the fyai display design language.
+#
+# One warm ground, one hue ring, six meanings. Every colour is derived from
+# the parameters: a variant changes lightness and chroma, never a hue angle.
+# A keyword, a graph edge, an added line and the agent's own name share the
+# ring, so they read as one language.
+fypalette: 1
+name: ember
+description: One warm ground, one hue ring, six meanings.
+
+params:
+  # the neutral ramp keeps a trace of warmth; a blue-black ground makes the
+  # cyan and blue hues glare
+  ramp.hue: 85
+  ramp.chroma: 0.008
+
+  # the ring: one job per hue
+  hue.gold: 65       # fyai itself: tool calls, the prompt, its name
+  hue.blue: 250      # you: the user tag and what you act on
+  hue.violet: 295    # reasoning
+  hue.cyan: 190      # references: paths, symbols, links, commands
+  hue.green: 145     # added, passed, exit 0
+  hue.coral: 25      # removed, failed, denied, interrupted
+
+dark:
+  params:
+    l.ground: 0.16
+    l.raise: 0.20
+    l.rule: 0.26
+    l.faint: 0.48
+    l.dim: 0.68
+    l.ink: 0.92
+    # no identity hue is brighter than another
+    ring.l: 0.76
+    ring.c: 0.10
+    # consequence steps up in chroma: saturation carries "this matters"
+    strong.l: 0.70
+    strong.c: 0.13
+    # code sits one chroma step under the prose around it
+    syntax.l: 0.72
+    syntax.c: 0.07
+    wash: 0.06
+    bright.l: ring.l + 0.08
+  ansi16:
+    ground: default
+    raise: none
+    rule: 8
+    faint: 8
+    dim: default
+    ink: 15
+    gold: 11
+    blue: 12
+    violet: 13
+    cyan: 14
+    # the chroma step is lost, so consequence takes the normal pair
+    green: 2
+    coral: 1
+    green_strong: 2
+    coral_strong: 1
+    syn_keyword: 13
+    syn_type: 14
+    syn_string: 2
+    syn_number: 11
+    syn_function: 12
+    syn_preproc: 1
+    wash_add: none
+    wash_del: none
+  terminal16:
+    0: raise
+    7: dim
+    15: ink
+
+light:
+  params:
+    l.ground: 0.98
+    l.raise: 0.95
+    l.rule: 0.88
+    l.faint: 0.62
+    l.dim: 0.44
+    l.ink: 0.21
+    ring.l: 0.52
+    ring.c: 0.12
+    strong.l: 0.48
+    strong.c: 0.14
+    syntax.l: 0.50
+    syntax.c: 0.08
+    wash: 0.04
+    bright.l: ring.l - 0.08
+  ansi16:
+    ground: default
+    raise: none
+    rule: 7
+    faint: 8
+    dim: default
+    ink: default
+    # bright colours do not read on paper
+    gold: 3
+    blue: 4
+    violet: 5
+    cyan: 6
+    green: 2
+    coral: 1
+    green_strong: 2
+    coral_strong: 1
+    syn_keyword: 5
+    syn_type: 6
+    syn_string: 2
+    syn_number: 3
+    syn_function: 4
+    syn_preproc: 1
+    wash_add: none
+    wash_del: none
+  terminal16:
+    0: ink
+    7: rule
+    15: raise
+
+colors:
+  ground: oklch(l.ground, ramp.chroma, ramp.hue)
+  raise: oklch(l.raise, ramp.chroma, ramp.hue)
+  rule: oklch(l.rule, ramp.chroma, ramp.hue)
+  faint: oklch(l.faint, ramp.chroma, ramp.hue)
+  dim: oklch(l.dim, ramp.chroma, ramp.hue)
+  ink: oklch(l.ink, ramp.chroma, ramp.hue)
+
+  gold: oklch(ring.l, ring.c, hue.gold)
+  blue: oklch(ring.l, ring.c, hue.blue)
+  violet: oklch(ring.l, ring.c, hue.violet)
+  cyan: oklch(ring.l, ring.c, hue.cyan)
+  green: oklch(ring.l, ring.c, hue.green)
+  coral: oklch(ring.l, ring.c, hue.coral)
+
+  green_strong: oklch(strong.l, strong.c, hue.green)
+  coral_strong: oklch(strong.l, strong.c, hue.coral)
+
+  syn_keyword: oklch(syntax.l, syntax.c, hue.violet)
+  syn_type: oklch(syntax.l, syntax.c, hue.cyan)
+  syn_string: oklch(syntax.l, syntax.c, hue.green)
+  syn_number: oklch(syntax.l, syntax.c, hue.gold)
+  syn_function: oklch(syntax.l, syntax.c, hue.blue)
+  syn_preproc: oklch(syntax.l, syntax.c, hue.coral)
+
+  # the wash carries the sign of a diff row, so its tokens keep their syntax
+  wash_add: mix(ground, green_strong, wash)
+  wash_del: mix(ground, coral_strong, wash)
+
+terminal16:
+  1: oklch(strong.l, strong.c, hue.coral)
+  2: oklch(strong.l, strong.c, hue.green)
+  3: oklch(strong.l, strong.c, hue.gold)
+  4: oklch(strong.l, strong.c, hue.blue)
+  5: oklch(strong.l, strong.c, hue.violet)
+  6: oklch(strong.l, strong.c, hue.cyan)
+  8: faint
+  9: oklch(bright.l, ring.c, hue.coral)
+  10: oklch(bright.l, ring.c, hue.green)
+  11: oklch(bright.l, ring.c, hue.gold)
+  12: oklch(bright.l, ring.c, hue.blue)
+  13: oklch(bright.l, ring.c, hue.violet)
+  14: oklch(bright.l, ring.c, hue.cyan)
+
+roles:
+  # the ramp: faint may be skipped, ink must be read
+  text:
+    fg: ink
+    dim: {fg: dim}
+    faint: {fg: faint}
+
+  chrome:
+    fg: faint
+    rule: {fg: rule}
+
+  # identity
+  fyai: {fg: gold}
+
+  user:
+    fg: blue
+    card: {fg: ink, bg: raise}
+
+  reasoning:
+    fg: violet
+    text: {fg: dim, attrs: [italic]}
+
+  ref: {fg: cyan}
+
+  ok: {fg: green_strong}
+
+  fail: {fg: coral_strong}
+
+  system: {fg: faint}
+
+  prompt:
+    fg: gold
+    asking: {fg: blue}
+
+  # the transcript
+  tool:
+    name: {fg: gold, attrs: [bold]}
+    arg: {fg: dim}
+    elapsed: {fg: faint}
+    output: {fg: dim}
+    pending: {fg: faint}
+    ok: {fg: green_strong}
+    fail: {fg: coral_strong}
+
+  notice:
+    sigil: {fg: coral_strong, attrs: [bold]}
+    class: {fg: coral_strong}
+    message: {fg: dim}
+
+  # markdown: headings use weight, not hue, except H2
+  md:
+    heading:
+      fg: ink
+      attrs: [bold]
+      2: {fg: gold}
+    strong: {attrs: [bold]}
+    emphasis: {attrs: [italic]}
+    strike: {attrs: [strike]}
+    code: {fg: cyan, bg: raise}
+    link:
+      fg: cyan
+      ul: rule
+      attrs: [underline]
+      url: {fg: faint, attrs: [-underline]}
+    bullet: {fg: gold}
+    task:
+      done:
+        fg: green_strong
+        text: {fg: dim}
+      open:
+        fg: faint
+        text: {fg: ink}
+    quote:
+      fg: dim
+      attrs: [italic]
+      bar: {fg: violet, attrs: [-italic]}
+    rule: {fg: rule}
+    table:
+      grid: {fg: rule}
+      header: {fg: ink, attrs: [bold]}
+      cell: {fg: dim}
+
+  # code: capture names of the highlighter, under code.
+  code:
+    fg: ink
+    block: {bg: raise}
+    head:
+      fg: faint
+      bg: ground
+      lang: {fg: dim}
+    lineno: {fg: faint}
+    keyword: {fg: syn_keyword}
+    type: {fg: syn_type}
+    string: {fg: syn_string}
+    number: {fg: syn_number}
+    constant: {fg: syn_number}
+    function: {fg: syn_function}
+    preproc: {fg: syn_preproc}
+    attribute: {fg: syn_preproc}
+    comment: {fg: faint, attrs: [italic]}
+    punctuation: {fg: dim}
+    operator: {fg: dim}
+    variable: {fg: ink}
+
+  diff:
+    add: {bg: wash_add}
+    del: {bg: wash_del}
+    lineno:
+      add: {fg: green_strong}
+      del: {fg: coral_strong}
+    hunk: {fg: faint}
+    file: {fg: cyan}
+
+  # mermaid: structure faint, content ink, stroke is the only hue
+  mermaid:
+    node: {fg: ink, bg: raise}
+    stroke: {fg: cyan}
+    edge:
+      fg: faint
+      label: {fg: faint}
+    cluster: {fg: rule}
+    title: {fg: ink, attrs: [bold]}
+    state:
+      ok: {fg: green_strong}
+      fail: {fg: coral_strong}
+    series:
+      0: {fg: cyan}
+      1: {fg: gold}
+      2: {fg: violet}
+      3: {fg: blue}
+
+  # the work pane: the head row is the whole chrome budget
+  pane:
+    cap: {fg: faint}
+    sep: {fg: rule}
+
+  tile:
+    head:
+      fg: dim
+      focus: {fg: ink}
+    sigil:
+      work: {fg: gold}
+      view: {fg: cyan}
+      notice: {fg: coral_strong}
+    state:
+      ok: {fg: green_strong}
+      fail: {fg: coral_strong}
+      asks: {fg: blue}
