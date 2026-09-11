@@ -76,3 +76,8 @@ install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/libfypalette-config.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/libfypalette-config-version.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libfypalette)
+
+if(BUILD_FYPALETTE_TESTS)
+    enable_testing()
+    add_subdirectory(t)
+endif()
