@@ -1,0 +1,194 @@
+name: Build and Test
+
+run-name: >-
+  ${{ github.event_name == 'pull_request' && format('Build and Test · PR #{0}', github.event.pull_request.number) ||
+      github.event_name == 'workflow_dispatch' && 'Build and Test · manual' ||
+      format('Build and Test · {0}', github.ref_name) }}
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: ${{ vars.NUMBER_OF_PROCESSORS || 2 }}
+  CTEST_PARALLEL_LEVEL: ${{ vars.NUMBER_OF_PROCESSORS || 2 }}
+  CTEST_OUTPUT_ON_FAILURE: 1
+
+on:
+  push:
+    branches: [ master, stable, devel ]
+  pull_request:
+    branches: [ master, stable, devel ]
+  workflow_dispatch:
+    inputs:
+      ctest_args:
+        description: "Extra ctest arguments (e.g. -R foo, -E bar, -V)"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  build:
+    name: >-
+      ${{ matrix.os }} · ${{ matrix.compiler }} · ${{ matrix.build_type }}
+      ${{ matrix.shared == 'OFF' && ' · static' || '' }}
+      ${{ matrix.asan == 'ON' && ' · ASAN' || '' }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            compiler: gcc
+            cc: gcc
+            build_type: Debug
+            shared: "ON"
+            asan: "OFF"
+          - os: ubuntu-latest
+            compiler: gcc
+            cc: gcc
+            build_type: Release
+            shared: "ON"
+            asan: "OFF"
+          - os: ubuntu-latest
+            compiler: clang
+            cc: clang
+            build_type: Debug
+            shared: "ON"
+            asan: "ON"
+          - os: ubuntu-latest
+            compiler: gcc
+            cc: gcc
+            build_type: Release
+            shared: "OFF"
+            asan: "OFF"
+          - os: macos-latest
+            compiler: clang
+            cc: clang
+            build_type: Debug
+            shared: "ON"
+            asan: "OFF"
+          - os: macos-latest
+            compiler: clang
+            cc: clang
+            build_type: Debug
+            shared: "ON"
+            asan: "ON"
+
+    steps:
+    - name: Git Sane LF
+      run: |
+        git config --global core.autocrlf false
+        git config --global core.eol lf
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install CMake/Ninja
+      uses: lukka/get-cmake@latest
+
+    - name: Install dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install --no-install-recommends -y \
+          build-essential \
+          clang \
+          git \
+          libubsan1 \
+          ninja-build \
+          pkg-config
+
+    - name: Install dependencies
+      if: runner.os == 'macOS'
+      run: brew install ninja pkg-config
+
+    - name: Build libfyaml
+      shell: bash
+      run: |
+        git clone --depth 1 https://github.com/pantoniou/libfyaml.git "${RUNNER_TEMP}/libfyaml"
+        cmake -S "${RUNNER_TEMP}/libfyaml" -B "${RUNNER_TEMP}/libfyaml-build" \
+          -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+          -DBUILD_TESTING=OFF \
+          -DCMAKE_INSTALL_PREFIX="${RUNNER_TEMP}/fypal-deps"
+        cmake --build "${RUNNER_TEMP}/libfyaml-build"
+        cmake --install "${RUNNER_TEMP}/libfyaml-build"
+
+    - name: Configure
+      shell: bash
+      run: |
+        cmake -S . -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+          -DBUILD_SHARED_LIBS=${{ matrix.shared }} \
+          -DENABLE_ASAN=${{ matrix.asan }} \
+          -DCMAKE_PREFIX_PATH="${RUNNER_TEMP}/fypal-deps" \
+          -DCMAKE_INSTALL_PREFIX="${RUNNER_TEMP}/fypal-inst"
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }}
+
+    - name: Test
+      shell: bash
+      working-directory: build
+      env:
+        LD_LIBRARY_PATH: ${{ runner.temp }}/fypal-deps/lib:${{ runner.temp }}/fypal-deps/lib64
+        DYLD_LIBRARY_PATH: ${{ runner.temp }}/fypal-deps/lib
+      run: ctest -C ${{ matrix.build_type }} ${{ inputs.ctest_args }}
+
+    # The built-in themes are data in the library; the tool must draw each of
+    # them at every depth without failing.
+    - name: Draw the built-in themes
+      shell: bash
+      env:
+        LD_LIBRARY_PATH: ${{ runner.temp }}/fypal-deps/lib:${{ runner.temp }}/fypal-deps/lib64
+        DYLD_LIBRARY_PATH: ${{ runner.temp }}/fypal-deps/lib
+      run: |
+        show=build/bin/fypalette-show
+        for theme in $("${show}" --list); do
+          for variant in -d -l; do
+            for depth in none 16 256 truecolor; do
+              for width in 40 80 400; do
+                "${show}" -t "${theme}" ${variant} -D ${depth} -w ${width} > /dev/null
+              done
+            done
+          done
+        done
+
+    - name: Install and check the package
+      if: matrix.shared == 'ON'
+      shell: bash
+      run: |
+        cmake --install build
+        cd "${RUNNER_TEMP}/fypal-inst"
+        echo "--- installed files:"
+        find . -type f -o -type l | sort
+        pcdir=$(dirname "$(find . -name libfypalette.pc | head -n1)")
+        PKG_CONFIG_PATH="${RUNNER_TEMP}/fypal-deps/lib/pkgconfig:${RUNNER_TEMP}/fypal-deps/lib64/pkgconfig" \
+          pkg-config --define-variable=prefix="${PWD}" \
+          --cflags --libs "${pcdir}/libfypalette.pc"
+
+    # The ABI is exactly the FYPAL_EXPORT-tagged entry points; nothing else
+    # escapes hidden visibility.
+    - name: Check only fypal_ symbols are exported
+      if: runner.os == 'Linux' && matrix.shared == 'ON'
+      shell: bash
+      run: |
+        so=$(ls build/src/libfypalette.so.*.*.* | head -n1)
+        echo "checking ${so}"
+        leaked=$(nm -D --defined-only "${so}" \
+          | awk '$2 ~ /^[A-Z]$/ { print $3 }' | grep -v '^fypal_' || true)
+        if [ -n "${leaked}" ]; then
+          echo "::error::non-fypal_ symbols leaked into the public ABI"
+          echo "${leaked}"
+          exit 1
+        fi
+        echo "exported: $(nm -D --defined-only "${so}" | awk '$2 ~ /^[A-Z]$/' | wc -l) symbols, all fypal_"
+
+    - name: Upload test logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-logs-${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}-${{ matrix.shared }}-${{ matrix.asan }}-${{ github.run_id }}
+        path: |
+          **/Testing/Temporary/
+          build/**/*.log
