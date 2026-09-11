@@ -210,6 +210,8 @@ roles:
 
   # markdown: headings use weight, not hue, except H2
   md:
+    # a whole document on a card: the bubble of the user's own words
+    card: {fg: ink, bg: raise}
     heading:
       fg: ink
       attrs: [bold]
@@ -266,7 +268,9 @@ roles:
   diff:
     add: {bg: wash_add}
     del: {bg: wash_del}
+    # the line number carries the sign of the row
     lineno:
+      fg: faint
       add: {fg: green_strong}
       del: {fg: coral_strong}
     hunk: {fg: faint}
