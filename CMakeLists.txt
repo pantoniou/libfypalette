@@ -54,6 +54,10 @@ endif()
 
 add_subdirectory(src)
 
+if(BUILD_FYPALETTE_TOOLS)
+    add_subdirectory(bin)
+endif()
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 configure_package_config_file(

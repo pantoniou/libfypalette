@@ -1,0 +1,7 @@
+add_executable(fypalette-show fypalette-show.c)
+target_link_libraries(fypalette-show PRIVATE fypalette)
+if(ASAN_C_FLAGS)
+    target_compile_options(fypalette-show PRIVATE ${ASAN_C_FLAGS})
+    target_link_options(fypalette-show PRIVATE ${ASAN_C_FLAGS})
+endif()
+install(TARGETS fypalette-show RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
