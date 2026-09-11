@@ -1,0 +1,12 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+libdir=@CMAKE_INSTALL_FULL_LIBDIR@
+includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
+
+Name: libfypalette
+Description: Programmable colour themes for terminal renderers
+Version: @PROJECT_VERSION@
+URL: @PROJECT_HOMEPAGE_URL@
+Requires: libfyaml
+Libs: -L${libdir} -lfypalette
+Libs.private: -lm
+Cflags: -I${includedir}

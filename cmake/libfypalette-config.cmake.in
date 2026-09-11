@@ -1,0 +1,12 @@
+@PACKAGE_INIT@
+
+set(libfypalette_VERSION "@PROJECT_VERSION@")
+
+include(CMakeFindDependencyMacro)
+if(NOT TARGET libfyaml::libfyaml)
+    find_dependency(libfyaml)
+endif()
+
+include(${CMAKE_CURRENT_LIST_DIR}/libfypalette-targets.cmake)
+
+check_required_components(libfypalette)
