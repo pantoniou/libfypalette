@@ -171,6 +171,7 @@ FYPAL_EXPORT enum fypal_variant fypal_detect_variant(int fd, bool *known);
  *   ansi16 NAME = N|default|none  the 16 colour form of a colour
  *   terminal16 N = CEXPR          colour N of an emulated terminal's palette
  *   role NAME: FIELDS             a role (roles have no section)
+ *   glyphs                        a tree of glyphs (see Glyphs)
  *
  * A definition in the section of the active variant replaces the one in
  * [all]. Names are evaluated when used, so the order of definitions does
@@ -284,6 +285,34 @@ FYPAL_EXPORT int fypal_ctx_color_sgr(struct fypal_ctx *ctx, const char *name,
 
 /* The emulated terminal palette; false when the theme leaves a slot out. */
 FYPAL_EXPORT bool fypal_ctx_terminal16(struct fypal_ctx *ctx, uint32_t out[16]);
+
+/* ---------------------------------------------------------------------
+ * Glyphs
+ *
+ * A theme names the glyphs its application draws, such as the gutter marks
+ * of a transcript, with a UTF-8 form and an ASCII form for a terminal or a
+ * charset without the UTF-8 one. A glyph name is a dot-separated path, and a
+ * lookup of an undefined name answers with its nearest defined ancestor.
+ * ------------------------------------------------------------------ */
+
+/*
+ * The glyph for @name, or for its nearest defined ancestor: the ASCII form
+ * when @ascii, else the UTF-8 form. NULL when no glyph answers. The string is
+ * valid until the glyph is defined again or the context is destroyed.
+ */
+FYPAL_EXPORT const char *fypal_ctx_glyph(struct fypal_ctx *ctx, const char *name,
+					 bool ascii);
+
+/*
+ * Define or replace a glyph. A NULL @ascii uses @utf for both forms. Returns
+ * 0, or -1 with the cause in fypal_ctx_error().
+ */
+FYPAL_EXPORT int fypal_ctx_define_glyph(struct fypal_ctx *ctx, const char *name,
+					const char *utf, const char *ascii);
+
+FYPAL_EXPORT size_t fypal_ctx_glyph_count(const struct fypal_ctx *ctx);
+FYPAL_EXPORT const char *fypal_ctx_glyph_name(const struct fypal_ctx *ctx,
+					      size_t index);
 
 /* ---------------------------------------------------------------------
  * Roles

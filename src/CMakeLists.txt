@@ -48,6 +48,7 @@ configure_file(${CMAKE_CURRENT_BINARY_DIR}/fypal-themes.c.tmp
 
 set(_fypal_sources
     fypal-color.c
+    fypal-glyph.c
     fypal-hash.c
     fypal-role.c
     fypal-term.c

@@ -41,7 +41,7 @@ static void style_unset(struct fypal_style *s)
 	s->attrs_clear = 0;
 }
 
-static bool role_name_valid(const char *name)
+bool fypal_path_valid_(const char *name)
 {
 	const char *p;
 	bool start = true;
@@ -151,8 +151,8 @@ int fypal_ctx_define_role_style(struct fypal_ctx *ctx, const char *name,
 
 	if (!ctx)
 		return -1;
-	if (!style || !role_name_valid(name) ||
-	    (base && !role_name_valid(base))) {
+	if (!style || !fypal_path_valid_(name) ||
+	    (base && !fypal_path_valid_(base))) {
 		fypal_ctx_error_set_(ctx, "api: invalid role '%s'",
 				     name ? name : "");
 		errno = EINVAL;
@@ -259,7 +259,7 @@ int fypal_ctx_define_role_fields_(struct fypal_ctx *ctx, const char *name,
 
 	if (!where)
 		where = "api";
-	if (!role_name_valid(name) || !fields) {
+	if (!fypal_path_valid_(name) || !fields) {
 		fypal_ctx_error_set_(ctx, "%s: invalid role '%s'", where,
 				     name ? name : "");
 		return -1;
@@ -316,7 +316,7 @@ int fypal_ctx_define_role_fields_(struct fypal_ctx *ctx, const char *name,
 			style.attrs_clear &= ~attr_desc[i].attr;
 		}
 	}
-	if (have_base && !role_name_valid(base)) {
+	if (have_base && !fypal_path_valid_(base)) {
 		fypal_ctx_error_set_(ctx, "%s: invalid base '%s'", where, base);
 		return -1;
 	}

@@ -104,6 +104,12 @@ struct fypal_color {
 	int ansi;
 };
 
+struct fypal_glyph {
+	char *name;
+	char *utf;
+	char *ascii;
+};
+
 struct fypal_role {
 	char *name;
 	char *base;
@@ -136,6 +142,11 @@ struct fypal_ctx {
 	struct fypal_hash color_hash;	/* name -> struct fypal_color */
 	struct fypal_hash role_hash;	/* name -> struct fypal_role */
 	struct fypal_hash query_hash;	/* queried name -> answering role or NULL */
+
+	struct fypal_glyph **glyphs;
+	size_t nglyphs;
+	size_t aglyphs;
+	struct fypal_hash glyph_hash;	/* name -> struct fypal_glyph */
 
 	unsigned int gen;		/* bumped by every change */
 	unsigned int eval_gen;		/* bumped by every evaluation pass */
@@ -172,5 +183,13 @@ int fypal_ctx_color_params_(const struct fypal_ctx *ctx,
 int fypal_ctx_define_role_fields_(struct fypal_ctx *ctx, const char *name,
 				  const char *fields, const char *where);
 void fypal_ctx_roles_destroy_(struct fypal_ctx *ctx);
+
+/* A dot-separated name of roles and glyphs: components of letters, digits,
+ * '_' and '-'. */
+bool fypal_path_valid_(const char *name);
+
+int fypal_ctx_define_glyph_(struct fypal_ctx *ctx, const char *name,
+			    const char *utf, const char *ascii, const char *where);
+void fypal_ctx_glyphs_destroy_(struct fypal_ctx *ctx);
 
 #endif

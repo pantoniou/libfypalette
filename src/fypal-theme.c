@@ -112,6 +112,7 @@ void fypal_ctx_destroy(struct fypal_ctx *ctx)
 	fypal_hash_release_(&ctx->param_hash);
 	fypal_hash_release_(&ctx->color_hash);
 	fypal_ctx_roles_destroy_(ctx);
+	fypal_ctx_glyphs_destroy_(ctx);
 	free(ctx);
 }
 
@@ -1170,6 +1171,83 @@ static int load_role_node(struct fypal_ctx *ctx, const char *name,
 	return 0;
 }
 
+/*
+ * One node of the glyph tree. A string is both forms of the glyph; a mapping
+ * holds the utf and ascii forms and the children, whose names extend this one
+ * with a dot.
+ */
+static int load_glyph_node(struct fypal_ctx *ctx, const char *name,
+			   fy_generic node, const char *source)
+{
+	char where[FYPAL_NAME_MAX * 2], child[FYPAL_NAME_MAX], kbuf[32];
+	const char *key, *utf, *ascii;
+	fy_generic k, v, gu, ga;
+
+	snprintf(where, sizeof(where), "%s: glyphs/%s", source, name);
+	if (fy_is_string(node))
+		return fypal_ctx_define_glyph_(ctx, name, fy_castp(&node, ""),
+					       NULL, where);
+	if (!fy_is_mapping(node)) {
+		fypal_ctx_error_set_(ctx, "%s: must be a mapping or a string",
+				     where);
+		return -1;
+	}
+	gu = fy_get(node, "utf");
+	ga = fy_get(node, "ascii");
+	if (fy_is_valid(gu) || fy_is_valid(ga)) {
+		if (!fy_is_string(gu) || (fy_is_valid(ga) && !fy_is_string(ga))) {
+			fypal_ctx_error_set_(ctx, "%s: utf must be a string, and ascii too when it is given",
+					     where);
+			return -1;
+		}
+		utf = fy_castp(&gu, "");
+		ascii = fy_is_valid(ga) ? fy_castp(&ga, "") : NULL;
+		if (fypal_ctx_define_glyph_(ctx, name, utf, ascii, where))
+			return -1;
+	}
+	fy_foreach_key_value(k, v, node) {
+		key = key_text(&k, kbuf, sizeof(kbuf));
+		if (!key) {
+			fypal_ctx_error_set_(ctx, "%s: glyph names must be scalars",
+					     where);
+			return -1;
+		}
+		if (!strcmp(key, "utf") || !strcmp(key, "ascii"))
+			continue;
+		if (snprintf(child, sizeof(child), "%s.%s", name, key) >=
+		    (int)sizeof(child)) {
+			fypal_ctx_error_set_(ctx, "%s: glyph name is too long", where);
+			return -1;
+		}
+		if (load_glyph_node(ctx, child, v, source))
+			return -1;
+	}
+	return 0;
+}
+
+static int load_glyphs(struct fypal_ctx *ctx, fy_generic map, const char *source)
+{
+	char kbuf[32];
+	const char *name;
+	fy_generic k, v;
+
+	if (!fy_is_mapping(map)) {
+		fypal_ctx_error_set_(ctx, "%s: glyphs: must be a mapping", source);
+		return -1;
+	}
+	fy_foreach_key_value(k, v, map) {
+		name = key_text(&k, kbuf, sizeof(kbuf));
+		if (!name) {
+			fypal_ctx_error_set_(ctx, "%s: glyphs: names must be scalars",
+					     source);
+			return -1;
+		}
+		if (load_glyph_node(ctx, name, v, source))
+			return -1;
+	}
+	return 0;
+}
+
 static int load_roles(struct fypal_ctx *ctx, fy_generic map, const char *source)
 {
 	char kbuf[32];
@@ -1222,6 +1300,8 @@ static int load_section(struct fypal_ctx *ctx, fy_generic map,
 			rc = load_section(ctx, v, FYPAL_SECTION_LIGHT, source);
 		} else if (section == FYPAL_SECTION_ALL && !strcmp(key, "roles")) {
 			rc = load_roles(ctx, v, source);
+		} else if (section == FYPAL_SECTION_ALL && !strcmp(key, "glyphs")) {
+			rc = load_glyphs(ctx, v, source);
 		} else if (section == FYPAL_SECTION_ALL && !strcmp(key, "fypalette")) {
 			rc = 0;
 			if (fy_cast(v, 0LL) != THEME_VERSION) {
