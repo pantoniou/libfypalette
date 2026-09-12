@@ -368,6 +368,11 @@ An application gives a glyph a column count that does not change with the form.
 Ember keeps the gutter three columns wide with the `gutter.cols` parameter, and
 the ASCII form of a gutter mark is never wider than that.
 
+A theme sets other layout choices of its renderers with parameters in the same
+way. `md.code.rules: 0` draws a fenced block without the rule rows above and
+below it, which Ember does: the blank rows around a block set it apart, and the
+rows go to its content. A theme without the parameter keeps the rules.
+
 ## 7. Terminal output
 
 ### 7.1 Capabilities
