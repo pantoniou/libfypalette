@@ -18,6 +18,10 @@ params:
   # whatever glyph or charset the gutter shows
   gutter.cols: 3
 
+  # a fenced block draws no rule rows above and below it: the blank rows
+  # around the block set it apart, and the rows go to the content
+  md.code.rules: 0
+
   # the ring: one job per hue
   hue.gold: 65       # fyai itself: tool calls, the prompt, its name
   hue.blue: 250      # you: the user tag and what you act on
