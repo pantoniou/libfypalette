@@ -688,10 +688,89 @@ static void test_role_many(void)
 	fypal_ctx_destroy(ctx);
 }
 
+static void test_glyph_yaml(void)
+{
+	struct fypal_ctx *ctx;
+
+	ctx = theme("glyphs:\n"
+		    "  mark: \"?\"\n"
+		    "  gutter:\n"
+		    "    utf: \"|\"\n"
+		    "    tool: {utf: \"\u2192\", ascii: \"->\"}\n"
+		    "    deep.er: {utf: \"x\"}\n");
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "mark", false), "?"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "mark", true), "?"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool", false), "\u2192"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool", true), "->"));
+	/* an undefined name answers with its nearest ancestor */
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool.pending", true), "->"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.other", false), "|"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.deep.er", true), "x"));
+	CHECK(fypal_ctx_glyph(ctx, "nothing", false) == NULL);
+	CHECK(fypal_ctx_glyph_count(ctx) == 4);
+	fypal_ctx_destroy(ctx);
+}
+
+static void test_glyph_api(void)
+{
+	struct fypal_ctx *ctx;
+	bool found = false;
+	const char *name;
+	size_t i;
+
+	ctx = fypal_ctx_create(NULL);
+	CHECK(!fypal_ctx_define_glyph(ctx, "a.b", "\u25cf", "*"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "a.b", false), "\u25cf"));
+	CHECK(!fypal_ctx_define_glyph(ctx, "a.b", "o", NULL));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "a.b", true), "o"));
+	CHECK(fypal_ctx_glyph_count(ctx) == 1);
+	for (i = 0; (name = fypal_ctx_glyph_name(ctx, i)); i++)
+		found |= !strcmp(name, "a.b");
+	CHECK(found);
+	CHECK(fypal_ctx_define_glyph(ctx, "bad..name", "x", NULL) == -1);
+	CHECK(fypal_ctx_define_glyph(ctx, "ok", NULL, "x") == -1);
+	CHECK(strstr(fypal_ctx_error(ctx), "invalid glyph") != NULL);
+	fypal_ctx_destroy(ctx);
+}
+
+static void test_glyph_errors(void)
+{
+	theme_fails("glyphs: [a]", "glyphs: must be a mapping", __LINE__);
+	theme_fails("glyphs: {a: 1}", "glyphs/a: must be a mapping or a string",
+		    __LINE__);
+	theme_fails("glyphs: {a: {ascii: x}}", "utf must be a string", __LINE__);
+	theme_fails("glyphs: {a: {utf: x, ascii: [y]}}", "utf must be a string",
+		    __LINE__);
+}
+
+static void test_ember_glyphs(void)
+{
+	struct fypal_ctx *ctx;
+	double cols;
+
+	ctx = ember(NULL);
+	CHECK(!fypal_ctx_param(ctx, "gutter.cols", &cols) && cols == 3.0);
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool", false), "\u2192"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool", true), "->"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.result", true), "`-"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "md.bullet", false), "\u2022"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "md.task.open", true), "[ ]"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "tool.pending", false), "\u2192"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "tool.pending.1", true), " "));
+	/* a frame the theme does not define answers with frame 0 */
+	CHECK(fypal_ctx_glyph(ctx, "tool.pending.2", false) ==
+	      fypal_ctx_glyph(ctx, "tool.pending", false));
+	fypal_ctx_destroy(ctx);
+}
+
 static const struct {
 	const char *name;
 	void (*fn)(void);
 } tests[] = {
+	{ "glyph_yaml", test_glyph_yaml },
+	{ "glyph_api", test_glyph_api },
+	{ "glyph_errors", test_glyph_errors },
+	{ "ember_glyphs", test_ember_glyphs },
 	{ "lab_roundtrip", test_lab_roundtrip },
 	{ "lch_reference", test_lch_reference },
 	{ "gamut_map", test_gamut_map },

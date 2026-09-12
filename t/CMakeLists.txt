@@ -34,6 +34,10 @@ set(_fypal_tests
     role_invalidate
     role_style_sgr
     role_many
+    glyph_yaml
+    glyph_api
+    glyph_errors
+    ember_glyphs
 )
 
 foreach(_t ${_fypal_tests})
