@@ -750,6 +750,7 @@ static void test_ember_glyphs(void)
 
 	ctx = ember(NULL);
 	CHECK(!fypal_ctx_param(ctx, "gutter.cols", &cols) && cols == 3.0);
+	CHECK(!fypal_ctx_param(ctx, "md.code.rules", &cols) && cols == 0.0);
 	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool", false), "\u2192"));
 	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool", true), "->"));
 	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.result", true), "`-"));
