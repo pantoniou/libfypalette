@@ -288,11 +288,21 @@ roles:
     state:
       ok: {fg: green_strong}
       fail: {fg: coral_strong}
+    # text a diagram draws that is not a node label or an edge
+    label: {fg: ink}
+    tag: {fg: cyan, attrs: [bold]}
+    # what the user acts on
+    selected: {fg: blue, attrs: [bold, reverse]}
+    # green and coral say ok and broken, so a series never takes them
     series:
       0: {fg: cyan}
       1: {fg: gold}
       2: {fg: violet}
       3: {fg: blue}
+      4: {fg: cyan}
+      5: {fg: gold}
+      6: {fg: violet}
+      7: {fg: blue}
 
   # the work pane: the head row is the whole chrome budget
   pane:
