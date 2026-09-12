@@ -14,6 +14,10 @@ params:
   ramp.hue: 85
   ramp.chroma: 0.008
 
+  # the gutter is three columns wide and the text column starts at four,
+  # whatever glyph or charset the gutter shows
+  gutter.cols: 3
+
   # the ring: one job per hue
   hue.gold: 65       # fyai itself: tool calls, the prompt, its name
   hue.blue: 250      # you: the user tag and what you act on
@@ -159,6 +163,53 @@ terminal16:
   13: oklch(bright.l, ring.c, hue.violet)
   14: oklch(bright.l, ring.c, hue.cyan)
 
+# The glyphs of the transcript, the Markdown and the work pane. An ASCII form
+# is what a terminal without the UTF-8 form shows; the gutter keeps its width.
+glyphs:
+  gutter:
+    user: {utf: "▌", ascii: ">"}
+    reasoning: {utf: "▏", ascii: ":"}
+    # the tool call: the mark is also the blinker of a call that runs
+    tool: {utf: "→", ascii: "->"}
+    result: {utf: "⎿", ascii: "`-"}
+    system: {utf: "∷", ascii: "::"}
+    ask: "?"
+    diag: "!"
+    background: {utf: "◷", ascii: "~"}
+  md:
+    bullet: {utf: "•", ascii: "*"}
+    card:
+      bar: {utf: "▌", ascii: ">"}
+    task:
+      done: {utf: "✔", ascii: "[x]"}
+      open: {utf: "☐", ascii: "[ ]"}
+    # a quote holds reasoning: the violet hairline of the reasoning gutter
+    quote:
+      bar: {utf: "▏", ascii: "|"}
+    rule: {utf: "─", ascii: "-"}
+    table:
+      vertical: {utf: "│", ascii: "|"}
+      horizontal: {utf: "─", ascii: "-"}
+      cross: {utf: "┼", ascii: "+"}
+  # the state of a call is the arrow of its gutter: it blinks while the call
+  # runs, frame by frame, and stays when the call ends
+  tool:
+    pending:
+      utf: "→"
+      ascii: "->"
+      1: " "
+    ok: {utf: "→", ascii: "->"}
+    fail: {utf: "→", ascii: "->"}
+    cause: {utf: "✖", ascii: "x"}
+  elision: {utf: "⋯", ascii: "..."}
+  tile:
+    shell: "$"
+    agent: "@"
+    agents: {utf: "≡", ascii: "="}
+    browser: {utf: "◇", ascii: "<>"}
+    text: {utf: "¶", ascii: "#"}
+    notice: "!"
+
 roles:
   # the ramp: faint may be skipped, ink must be read
   text:
@@ -199,8 +250,8 @@ roles:
     arg: {fg: dim}
     elapsed: {fg: faint}
     output: {fg: dim}
-    pending: {fg: faint}
-    ok: {fg: green_strong}
+    pending: {fg: gold}
+    ok: {fg: gold}
     fail: {fg: coral_strong}
 
   notice:
