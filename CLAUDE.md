@@ -45,6 +45,7 @@ This is the rule that the rest of the design follows.
 - `src/fypal-theme.c`: the context, parameter and colour definitions, the
   expression evaluator, and YAML loading.
 - `src/fypal-role.c`: roles, inheritance, lookup, and SGR on/off escapes.
+- `src/fypal-glyph.c`: named glyphs with UTF-8 and ASCII forms.
 - `src/fypal-hash.c`: the string hash for every name lookup.
 - `src/fypal-term.c`: depth, capability and background detection.
 - `src/fypal-internal.h`: internal structures.

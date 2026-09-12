@@ -8,7 +8,8 @@ libfypalette has no theme policy of its own. It supplies:
 - quantisation to the xterm 256 and ANSI 16 colour palettes;
 - detection of terminal capabilities and background; and
 - an evaluator for YAML themes: parameters, colour expressions, per-variant
-  sections, and a tree of named roles that give SGR escapes.
+  sections, a tree of named roles that give SGR escapes, and a tree of named
+  glyphs with UTF-8 and ASCII forms.
 
 The built-in theme is Ember, the display design language of fyai. Its colours
 are formulas over a small set of parameters; see `themes/ember.yaml`.

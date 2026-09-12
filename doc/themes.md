@@ -51,6 +51,7 @@ light:                  # overrides for the light variant
   ...
 
 roles: {...}            # see section 6
+glyphs: {...}           # see section 6.5
 ```
 
 An unknown key is an error. This catches a misspelt section, such as
@@ -333,6 +334,39 @@ Tree-sitter capture names are already dot-separated hierarchies
 (`keyword.control.conditional`), so the lookup fallback maps a precise capture
 to the most precise role that the theme defines. A theme does not need a table
 of regular expressions.
+
+### 6.5 Glyphs
+
+A theme also names the glyphs that its renderers draw: the gutter marks of a
+transcript, the list bullet, the task marks, the frames of an indicator. Each
+glyph has a UTF-8 form and an ASCII form. A renderer uses the ASCII form when
+the terminal or the user does not accept the UTF-8 form.
+
+```yaml
+glyphs:
+  gutter:
+    tool: {utf: "→", ascii: "->"}   # both forms
+    ask: "?"                        # one string is both forms
+  tool:
+    pending:
+      utf: "→"
+      ascii: "->"
+      1: " "                        # a child: tool.pending.1
+```
+
+The glyph tree has the same shape as the role tree. A key other than `utf` and
+`ascii` is a child glyph, and the name of a child extends the name of its parent
+with a dot. A glyph with no `ascii` form uses its `utf` form for both.
+
+`fypal_ctx_glyph(ctx, name, ascii)` returns a glyph. An undefined name returns
+its nearest defined ancestor, as a role lookup does, and a name with no defined
+ancestor returns `NULL`. A sequence of glyphs, such as the frames of an
+indicator, uses numbered children. The first undefined child returns the same
+string as the parent, so a renderer stops there.
+
+An application gives a glyph a column count that does not change with the form.
+Ember keeps the gutter three columns wide with the `gutter.cols` parameter, and
+the ASCII form of a gutter mark is never wider than that.
 
 ## 7. Terminal output
 
