@@ -251,6 +251,8 @@ FYPAL_EXPORT int fypal_ctx_define_param(struct fypal_ctx *ctx, const char *name,
 					const char *expr);
 FYPAL_EXPORT int fypal_ctx_set_param(struct fypal_ctx *ctx, const char *name,
 				     enum fypal_section section, double value);
+FYPAL_EXPORT int fypal_ctx_set_param_string(struct fypal_ctx *ctx, const char *name,
+					  enum fypal_section section, const char *value);
 FYPAL_EXPORT int fypal_ctx_define_color(struct fypal_ctx *ctx, const char *name,
 					enum fypal_section section,
 					const char *expr);
@@ -271,6 +273,9 @@ FYPAL_EXPORT const char *fypal_ctx_param_name(const struct fypal_ctx *ctx,
 					      size_t index);
 FYPAL_EXPORT int fypal_ctx_param(struct fypal_ctx *ctx, const char *name,
 				 double *value);
+/* Borrowed string for the active variant; NULL for numeric or absent values. */
+FYPAL_EXPORT const char *fypal_ctx_param_string(struct fypal_ctx *ctx,
+					      const char *name);
 
 FYPAL_EXPORT size_t fypal_ctx_color_count(const struct fypal_ctx *ctx);
 FYPAL_EXPORT const char *fypal_ctx_color_name(const struct fypal_ctx *ctx,

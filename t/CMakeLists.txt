@@ -20,6 +20,7 @@ set(_fypal_tests
     theme_sections
     theme_errors
     theme_api
+    param_strings
     theme_ansi16
     theme_terminal16
     theme_file

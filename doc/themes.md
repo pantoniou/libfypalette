@@ -12,7 +12,7 @@ The library has no theme policy. It supplies four things:
 - terminal capabilities and SGR escape output; and
 - an evaluator for themes.
 
-A **theme** is a YAML document. It defines numbers (parameters), colours
+A **theme** is a YAML document. It defines numbers and strings (parameters), colours
 that are expressions over the parameters, and named roles that give a style
 to what a renderer draws. The built-in themes are the files in `themes/`.
 The build compiles them into the library as data.
@@ -37,7 +37,7 @@ fypalette: 1            # format version (optional; must be 1)
 name: ember             # informational
 description: ...        # informational
 
-params:     {NAME: EXPR, ...}
+params:     {NAME: EXPR | STRING | {string: STRING}, ...}
 colors:     {NAME: CEXPR, ...}
 ansi16:     {NAME: 0-15 | default | none, ...}
 terminal16: {0-15: CEXPR, ...}
@@ -78,13 +78,21 @@ some parameters, then API overrides.
 
 ## 3. Parameters
 
-A parameter is a number. Its value is a YAML number or an expression string:
+Most parameters are numbers. Their values are YAML numbers or expression strings:
 
 ```yaml
 params:
   ring.l: 0.76
   bright.l: ring.l + 0.08
 ```
+
+A symbolic scalar made of letters, digits, dots, underscores and hyphens is a
+string when none of its hyphen-separated names refers to a parameter. For
+example, `none`, `top` and `bubble-rule-faint` are strings. A reference to a
+defined parameter, including a forward reference, remains a numeric expression.
+Use `{string: VALUE}` to state a string explicitly, including values with spaces
+or values that also name a parameter. API expression definitions remain numeric;
+use `fypal_ctx_set_param_string()` for API string definitions.
 
 The expression grammar:
 
@@ -368,10 +376,31 @@ An application gives a glyph a column count that does not change with the form.
 Ember keeps the gutter three columns wide with the `gutter.cols` parameter, and
 the ASCII form of a gutter mark is never wider than that.
 
-A theme sets other layout choices of its renderers with parameters in the same
-way. `md.code.rules: 0` draws a fenced block without the rule rows above and
-below it, which Ember does: the blank rows around a block set it apart, and the
-rows go to its content. A theme without the parameter keeps the rules.
+A theme sets fenced-code layout with the string parameter `md.code.rules`:
+
+```yaml
+params:
+  md.code.rules: bubble-raise-faint # Ember's default
+  # md.code.rules: none            # no rule rows
+  # md.code.rules: top             # rule above only
+  # md.code.rules: both            # rules above and below
+  # md.code.rules: top-bottom      # alias for both
+```
+
+`bubble-<bg>-<legend>` fills the fence with the named palette colour `<bg>`
+and draws its uppercase `── LANGUAGE ──` label using `<legend>` (ASCII:
+`-- LANGUAGE --`). A blank bubble row separates the label from the code.
+Ember uses `bubble-raise-faint`: `raise` behind the code and `faint` for the label.
+For example, `bubble-rule-faint`
+uses `rule` as the background and `faint` for the label. Content keeps its
+syntax foreground colours. Bubble rows extend to the rendering width and have
+no full-width rule rows. A missing parameter keeps the renderer's own decorations;
+numeric `0` and `1` remain aliases for `none` and `both`.
+
+`fypal_ctx_param_string()` returns the borrowed value for the active variant,
+or `NULL` for a numeric or absent parameter. `fypal_ctx_set_param_string()`
+defines a string through the API, including variant overrides. Numeric lookups
+and expressions cannot use string values.
 
 ## 7. Terminal output
 

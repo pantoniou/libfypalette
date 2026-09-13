@@ -332,6 +332,40 @@ static void test_theme_api(void)
 	fypal_ctx_destroy(ctx);
 }
 
+static void test_param_strings(void)
+{
+	struct fypal_ctx *ctx = fypal_ctx_create(NULL);
+	double value;
+	const char *text;
+
+	CHECK(!fypal_ctx_load(ctx,
+		"params: {md.code.rules: none, n: 2, label: {string: 'hello world'}, alias: n}\n"
+		"dark: {params: {md.code.rules: bubble-rule-faint}}\n"
+		"light: {params: {md.code.rules: top}}\n", "strings"));
+	text = fypal_ctx_param_string(ctx, "md.code.rules");
+	CHECK(text && !strcmp(text, "bubble-rule-faint"));
+	CHECK(fypal_ctx_param(ctx, "md.code.rules", &value) == -1);
+	CHECK(fypal_ctx_param_string(ctx, "n") == NULL);
+	CHECK(fypal_ctx_param_string(ctx, "missing") == NULL);
+	text = fypal_ctx_param_string(ctx, "label");
+	CHECK(text && !strcmp(text, "hello world"));
+	CHECK(!fypal_ctx_param(ctx, "alias", &value) && value == 2);
+	CHECK(!fypal_ctx_set_param(ctx, "alias", FYPAL_SECTION_ALL, 2));
+	fypal_ctx_set_variant(ctx, FYPAL_VARIANT_LIGHT);
+	text = fypal_ctx_param_string(ctx, "md.code.rules");
+	CHECK(text && !strcmp(text, "top"));
+	CHECK(!fypal_ctx_set_param_string(ctx, "n", FYPAL_SECTION_LIGHT, "both"));
+	CHECK(!fypal_ctx_check(ctx));
+	CHECK(fypal_ctx_param(ctx, "n", &value) == -1);
+	CHECK(!fypal_ctx_set_param(ctx, "n", FYPAL_SECTION_LIGHT, 3));
+	CHECK(!fypal_ctx_param(ctx, "n", &value) && value == 3);
+	CHECK(fypal_ctx_param_string(ctx, "n") == NULL);
+	CHECK(!fypal_ctx_define_param(ctx, "bad", FYPAL_SECTION_ALL, "md.code.rules"));
+	CHECK(fypal_ctx_check(ctx) == -1);
+	CHECK(strstr(fypal_ctx_error(ctx), "is a string") != NULL);
+	fypal_ctx_destroy(ctx);
+}
+
 static void test_theme_ansi16(void)
 {
 	struct fypal_caps caps = {
@@ -750,7 +784,7 @@ static void test_ember_glyphs(void)
 
 	ctx = ember(NULL);
 	CHECK(!fypal_ctx_param(ctx, "gutter.cols", &cols) && cols == 3.0);
-	CHECK(!fypal_ctx_param(ctx, "md.code.rules", &cols) && cols == 0.0);
+	CHECK(!strcmp(fypal_ctx_param_string(ctx, "md.code.rules"), "bubble-raise-faint"));
 	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool", false), "\u2192"));
 	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool", true), "->"));
 	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.result", true), "`-"));
@@ -785,6 +819,7 @@ static const struct {
 	{ "theme_sections", test_theme_sections },
 	{ "theme_errors", test_theme_errors },
 	{ "theme_api", test_theme_api },
+	{ "param_strings", test_param_strings },
 	{ "theme_ansi16", test_theme_ansi16 },
 	{ "theme_terminal16", test_theme_terminal16 },
 	{ "theme_file", test_theme_file },

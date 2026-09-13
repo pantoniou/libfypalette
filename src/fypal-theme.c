@@ -287,7 +287,71 @@ static int define_param(struct fypal_ctx *ctx, const char *name,
 		fypal_ctx_error_set_(ctx, "%s: out of memory", where ? where : "api");
 		return -1;
 	}
-	return def_set(ctx, &p->def, section, expr, where);
+	if (def_set(ctx, &p->def, section, expr, where))
+		return -1;
+	p->text[section] = false;
+	p->auto_text[section] = false;
+	return 0;
+}
+
+static bool param_is_text(const struct fypal_ctx *ctx, const struct fypal_param *p)
+{
+	const char *expr, *start, *q;
+	enum fypal_section s = ctx->variant == FYPAL_VARIANT_LIGHT ?
+		FYPAL_SECTION_LIGHT : FYPAL_SECTION_DARK;
+	if (!p->def.expr[s])
+		s = FYPAL_SECTION_ALL;
+	if (p->text[s])
+		return true;
+	if (!p->auto_text[s])
+		return false;
+	expr = p->def.expr[s];
+	if (!expr || (!isalpha((unsigned char)*expr) && *expr != '_'))
+		return false;
+	/* Symbolic scalar values are strings unless they name parameters.
+	 * Resolve after loading, so forward numeric references still work. */
+	start = expr;
+	for (q = expr; ; q++) {
+		if (*q == '-' || !*q) {
+			if (q == start || param_find(ctx, start, (size_t)(q - start)))
+				return false;
+			if (!*q)
+				return true;
+			start = q + 1;
+		} else if (!isalnum((unsigned char)*q) && *q != '_' && *q != '.') {
+			return false;
+		}
+	}
+}
+
+int fypal_ctx_set_param_string(struct fypal_ctx *ctx, const char *name,
+			      enum fypal_section section, const char *value)
+{
+	int rc;
+
+	if (!ctx)
+		return -1;
+	fypal_ctx_error_clear_(ctx);
+	rc = define_param(ctx, name, section, value, NULL);
+	if (rc)
+		return rc;
+	param_find(ctx, name, strlen(name))->text[section] = true;
+	return 0;
+}
+
+const char *fypal_ctx_param_string(struct fypal_ctx *ctx, const char *name)
+{
+	struct fypal_param *p;
+	enum fypal_section s;
+
+	if (!ctx || !name)
+		return NULL;
+	p = param_find(ctx, name, strlen(name));
+	if (!p || !param_is_text(ctx, p))
+		return NULL;
+	s = ctx->variant == FYPAL_VARIANT_LIGHT ? FYPAL_SECTION_LIGHT :
+						FYPAL_SECTION_DARK;
+	return p->def.expr[p->def.expr[s] ? s : FYPAL_SECTION_ALL];
 }
 
 static int define_color(struct fypal_ctx *ctx, const char *name,
@@ -548,6 +612,11 @@ static double param_value(struct eval *e, struct fypal_param *p)
 	struct eval sub;
 	double v;
 
+	if (param_is_text(e->ctx, p)) {
+		eval_fail(e, "parameter '%s' is a string", p->def.name);
+		return NAN;
+	}
+
 	if (!def_enter(e, &p->def, "parameter"))
 		return p->def.state == FYPAL_EVAL_DONE ? p->value : NAN;
 	expr = def_expr(&p->def, e->ctx->variant, &where);
@@ -796,6 +865,8 @@ static int ctx_derive(struct fypal_ctx *ctx, bool force)
 	/* a parameter without a value for this variant is not an error
 	 * until something uses it */
 	for (i = 0; i < ctx->nparams; i++) {
+		if (param_is_text(ctx, ctx->params[i]))
+			continue;
 		if (!def_expr(&ctx->params[i]->def, ctx->variant, &where))
 			continue;
 		eval_init(&e, ctx, "", where, 0);
@@ -889,7 +960,7 @@ int fypal_ctx_param(struct fypal_ctx *ctx, const char *name, double *value)
 	if (!ctx || !name)
 		return -1;
 	p = param_find(ctx, name, strlen(name));
-	if (!p)
+	if (!p || param_is_text(ctx, p))
 		return -1;
 	fypal_ctx_derive_(ctx);
 	if (p->def.eval_gen != ctx->eval_gen || p->def.state != FYPAL_EVAL_DONE)
@@ -1010,6 +1081,17 @@ static int load_defs(struct fypal_ctx *ctx, fy_generic map,
 			return -1;
 		}
 
+		/* An explicit string avoids ambiguity with a numeric reference. */
+		if (!strcmp(group, "params") && fy_is_mapping(v) && fy_len(v) == 1 &&
+		    fy_is_string(fy_get(v, "string", fy_invalid))) {
+			fy_generic str = fy_get(v, "string", fy_invalid);
+			text = fy_castp(&str, "");
+			rc = define_param(ctx, key, section, text, where);
+			if (rc)
+				return rc;
+			param_find(ctx, key, strlen(key))->text[section] = true;
+			continue;
+		}
 		text = NULL;
 		if (fy_is_string(v)) {
 			text = fy_castp(&v, "");
@@ -1039,6 +1121,8 @@ static int load_defs(struct fypal_ctx *ctx, fy_generic map,
 			return -1;
 		} else if (!strcmp(group, "params")) {
 			rc = define_param(ctx, key, section, text, where);
+			if (!rc && fy_is_string(v))
+				param_find(ctx, key, strlen(key))->auto_text[section] = true;
 		} else if (!strcmp(group, "colors")) {
 			rc = define_color(ctx, key, section, text, where);
 		} else {

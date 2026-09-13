@@ -20,7 +20,7 @@ params:
 
   # a fenced block draws no rule rows above and below it: the blank rows
   # around the block set it apart, and the rows go to the content
-  md.code.rules: 0
+  md.code.rules: bubble-raise-faint
 
   # the ring: one job per hue
   hue.gold: 65       # fyai itself: tool calls, the prompt, its name

@@ -93,6 +93,8 @@ struct fypal_def {
 struct fypal_param {
 	struct fypal_def def;
 	double value;
+	bool text[FYPAL_SECTIONS];
+	bool auto_text[FYPAL_SECTIONS];
 };
 
 struct fypal_color {
