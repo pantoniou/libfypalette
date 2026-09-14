@@ -150,6 +150,10 @@ struct fypal_ctx {
 	size_t aglyphs;
 	struct fypal_hash glyph_hash;	/* name -> struct fypal_glyph */
 
+	/* The parameters that hold the lightness, chroma and hue of the ground,
+	 * owned; NULL when the theme names no ground. */
+	char *ground[3];
+
 	unsigned int gen;		/* bumped by every change */
 	unsigned int eval_gen;		/* bumped by every evaluation pass */
 	unsigned int derived_gen;	/* gen the colours were evaluated for */

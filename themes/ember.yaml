@@ -8,6 +8,11 @@ fypalette: 1
 name: ember
 description: One warm ground, one hue ring, six meanings.
 
+# The ground is the lightness, chroma and hue of the background. A host that
+# knows the background of its terminal sets them, and the neutral ramp keeps
+# its steps over that background.
+ground: {l: l.ground, c: ramp.chroma, h: ramp.hue}
+
 params:
   # the neutral ramp keeps a trace of warmth; a blue-black ground makes the
   # cyan and blue hues glare
@@ -32,12 +37,13 @@ params:
 
 dark:
   params:
+    # the ramp steps up from the ground
     l.ground: 0.16
-    l.raise: 0.20
-    l.rule: 0.26
-    l.faint: 0.48
-    l.dim: 0.68
-    l.ink: 0.92
+    l.raise: l.ground + 0.04
+    l.rule: l.ground + 0.10
+    l.faint: l.ground + 0.32
+    l.dim: l.ground + 0.52
+    l.ink: l.ground + 0.76
     # no identity hue is brighter than another
     ring.l: 0.76
     ring.c: 0.10
@@ -80,12 +86,13 @@ dark:
 
 light:
   params:
+    # the ramp steps down from the ground
     l.ground: 0.98
-    l.raise: 0.95
-    l.rule: 0.88
-    l.faint: 0.62
-    l.dim: 0.44
-    l.ink: 0.21
+    l.raise: l.ground - 0.03
+    l.rule: l.ground - 0.10
+    l.faint: l.ground - 0.36
+    l.dim: l.ground - 0.54
+    l.ink: l.ground - 0.77
     ring.l: 0.52
     ring.c: 0.12
     strong.l: 0.48

@@ -159,6 +159,13 @@ enum fypal_variant {
  */
 FYPAL_EXPORT enum fypal_variant fypal_detect_variant(int fd, bool *known);
 
+/*
+ * The background colour of the terminal, from an OSC 11 query on the
+ * controlling terminal, in *rgb. False, with *rgb unchanged, when the
+ * terminal did not answer.
+ */
+FYPAL_EXPORT bool fypal_detect_background(int fd, uint32_t *rgb);
+
 /* ---------------------------------------------------------------------
  * Themes
  *
@@ -263,6 +270,23 @@ FYPAL_EXPORT int fypal_ctx_define_terminal16(struct fypal_ctx *ctx, int index,
 					     const char *expr);
 FYPAL_EXPORT int fypal_ctx_define_role(struct fypal_ctx *ctx, const char *name,
 				       const char *fields);
+
+/*
+ * The ground of a theme: the parameters that hold the OKLCH lightness,
+ * chroma and hue of its background, as the `ground` key of a theme names
+ * them. Returns 0, or -1 with the cause in fypal_ctx_error().
+ */
+FYPAL_EXPORT int fypal_ctx_define_ground(struct fypal_ctx *ctx, const char *l,
+					 const char *c, const char *h);
+
+/*
+ * Make @rgb the ground of the active variant: set the ground parameters in
+ * the section of that variant to its lightness, chroma and hue. A theme that
+ * derives its neutral colours from those parameters then follows the
+ * background of the terminal. Returns 0, or -1 with the cause in
+ * fypal_ctx_error() when the theme names no ground.
+ */
+FYPAL_EXPORT int fypal_ctx_set_ground(struct fypal_ctx *ctx, uint32_t rgb);
 
 /* Evaluate every definition for the active variant: 0, or -1 and the cause. */
 FYPAL_EXPORT int fypal_ctx_check(struct fypal_ctx *ctx);

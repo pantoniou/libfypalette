@@ -185,9 +185,10 @@ static long elapsed_ms(const struct timespec *t0)
  * "ESC ] 11 ; rgb:RRRR/GGGG/BBBB" ended by BEL or ST. The query goes to the
  * controlling terminal so that redirected output never carries it, the read
  * has a deadline so that a silent terminal cannot hang the caller, and the
- * terminal mode is restored on every path.
+ * terminal mode is restored on every path. Returns 0 with the colour in
+ * *rgbp, or -1.
  */
-static int variant_from_query(int fd)
+static int background_from_query(int fd, uint32_t *rgbp)
 {
 	static const char query[] = "\033]11;?\033\\";
 	struct termios saved, raw;
@@ -265,9 +266,9 @@ static int variant_from_query(int fd)
 		if (slash)
 			p = slash + 1;
 	}
-	/* Rec. 601 luma; halfway divides a light terminal from a dark one */
-	out = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000 >= 128 ?
-	      FYPAL_VARIANT_LIGHT : FYPAL_VARIANT_DARK;
+	*rgbp = ((uint32_t)rgb[0] << 16) | ((uint32_t)rgb[1] << 8) |
+		(uint32_t)rgb[2];
+	out = 0;
 
 out_restore:
 	tcsetattr(tty, TCSANOW, &saved);
@@ -279,13 +280,39 @@ out_close:
 
 #else
 
-static int variant_from_query(int fd)
+static int background_from_query(int fd, uint32_t *rgbp)
 {
 	(void)fd;
+	(void)rgbp;
 	return -1;
 }
 
 #endif
+
+static int variant_from_query(int fd)
+{
+	uint32_t rgb;
+	int r, g, b;
+
+	if (background_from_query(fd, &rgb))
+		return -1;
+	r = (int)(rgb >> 16) & 0xff;
+	g = (int)(rgb >> 8) & 0xff;
+	b = (int)rgb & 0xff;
+	/* Rec. 601 luma; halfway divides a light terminal from a dark one */
+	return (r * 299 + g * 587 + b * 114) / 1000 >= 128 ?
+	       FYPAL_VARIANT_LIGHT : FYPAL_VARIANT_DARK;
+}
+
+bool fypal_detect_background(int fd, uint32_t *rgb)
+{
+	uint32_t v;
+
+	if (!rgb || background_from_query(fd, &v))
+		return false;
+	*rgb = v;
+	return true;
+}
 
 void fypal_caps_detect(int fd, struct fypal_caps *caps)
 {

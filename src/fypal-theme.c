@@ -111,6 +111,8 @@ void fypal_ctx_destroy(struct fypal_ctx *ctx)
 		def_release(&ctx->term16[i]);
 	fypal_hash_release_(&ctx->param_hash);
 	fypal_hash_release_(&ctx->color_hash);
+	for (i = 0; i < 3; i++)
+		free(ctx->ground[i]);
 	fypal_ctx_roles_destroy_(ctx);
 	fypal_ctx_glyphs_destroy_(ctx);
 	free(ctx);
@@ -444,6 +446,84 @@ int fypal_ctx_set_param(struct fypal_ctx *ctx, const char *name,
 	}
 	snprintf(buf, sizeof(buf), "%.17g", value);
 	return define_param(ctx, name, section, buf, NULL);
+}
+
+/* Name the parameters of the ground: @names holds l, c and h. */
+static int define_ground(struct fypal_ctx *ctx, const char *const *names,
+			 const char *where)
+{
+	char *copy[3] = { NULL, NULL, NULL };
+	int i;
+
+	for (i = 0; i < 3; i++) {
+		if (!names[i] || !def_name_valid(names[i], strlen(names[i]))) {
+			fypal_ctx_error_set_(ctx, "%s: ground: must name l, c and h",
+					     where);
+			goto err;
+		}
+	}
+	for (i = 0; i < 3; i++) {
+		copy[i] = strdup(names[i]);
+		if (!copy[i]) {
+			fypal_ctx_error_set_(ctx, "%s: out of memory", where);
+			goto err;
+		}
+	}
+	for (i = 0; i < 3; i++) {
+		free(ctx->ground[i]);
+		ctx->ground[i] = copy[i];
+	}
+	fypal_ctx_changed_(ctx);
+	return 0;
+err:
+	for (i = 0; i < 3; i++)
+		free(copy[i]);
+	return -1;
+}
+
+int fypal_ctx_define_ground(struct fypal_ctx *ctx, const char *l,
+			    const char *c, const char *h)
+{
+	const char *names[3] = { l, c, h };
+
+	if (!ctx)
+		return -1;
+	fypal_ctx_error_clear_(ctx);
+	return define_ground(ctx, names, "api");
+}
+
+int fypal_ctx_set_ground(struct fypal_ctx *ctx, uint32_t rgb)
+{
+	enum fypal_section section;
+	struct fypal_lch lch;
+	double v[3];
+	char buf[40];
+	int i;
+
+	if (!ctx)
+		return -1;
+	fypal_ctx_error_clear_(ctx);
+	if (!ctx->ground[0]) {
+		fypal_ctx_error_set_(ctx, "api: the theme names no ground");
+		return -1;
+	}
+	if (rgb & 0xff000000U) {
+		fypal_ctx_error_set_(ctx, "api: invalid ground colour 0x%08x", rgb);
+		return -1;
+	}
+	lch = fypal_lab_to_lch(fypal_rgb_to_lab(rgb));
+	v[0] = lch.L;
+	v[1] = lch.C;
+	v[2] = lch.h;
+	section = ctx->variant == FYPAL_VARIANT_LIGHT ? FYPAL_SECTION_LIGHT :
+							FYPAL_SECTION_DARK;
+	for (i = 0; i < 3; i++) {
+		/* a grey has no hue */
+		snprintf(buf, sizeof(buf), "%.17g", isfinite(v[i]) ? v[i] : 0.0);
+		if (define_param(ctx, ctx->ground[i], section, buf, NULL))
+			return -1;
+	}
+	return 0;
 }
 
 int fypal_ctx_define_color(struct fypal_ctx *ctx, const char *name,
@@ -1355,6 +1435,28 @@ static int load_roles(struct fypal_ctx *ctx, fy_generic map, const char *source)
 	return 0;
 }
 
+/* The ground of a theme: {l: NAME, c: NAME, h: NAME}. */
+static int load_ground(struct fypal_ctx *ctx, fy_generic map, const char *source)
+{
+	static const char *const keys[3] = { "l", "c", "h" };
+	const char *names[3] = { NULL, NULL, NULL };
+	/* A short name is stored in the generic word: each name keeps its own
+	 * generic until the names are copied. */
+	fy_generic v[3];
+	int i;
+
+	if (!fy_is_mapping(map) || fy_len(map) != 3) {
+		fypal_ctx_error_set_(ctx, "%s: ground: must name l, c and h", source);
+		return -1;
+	}
+	for (i = 0; i < 3; i++) {
+		v[i] = fy_get(map, keys[i], fy_invalid);
+		if (fy_is_string(v[i]))
+			names[i] = fy_castp(&v[i], "");
+	}
+	return define_ground(ctx, names, source);
+}
+
 static int load_section(struct fypal_ctx *ctx, fy_generic map,
 			enum fypal_section section, const char *source)
 {
@@ -1386,6 +1488,8 @@ static int load_section(struct fypal_ctx *ctx, fy_generic map,
 			rc = load_roles(ctx, v, source);
 		} else if (section == FYPAL_SECTION_ALL && !strcmp(key, "glyphs")) {
 			rc = load_glyphs(ctx, v, source);
+		} else if (section == FYPAL_SECTION_ALL && !strcmp(key, "ground")) {
+			rc = load_ground(ctx, v, source);
 		} else if (section == FYPAL_SECTION_ALL && !strcmp(key, "fypalette")) {
 			rc = 0;
 			if (fy_cast(v, 0LL) != THEME_VERSION) {

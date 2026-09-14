@@ -382,6 +382,8 @@ static void usage(FILE *fp, const char *prog)
 		"  -l, --light            the light variant (default: detect)\n"
 		"  -d, --dark             the dark variant\n"
 		"  -D, --depth DEPTH      none | 16 | 256 | truecolor (default: detect)\n"
+		"  -g, --ground COLOR     make COLOR, or the background of the terminal\n"
+		"                         for 'terminal', the ground of the theme\n"
 		"  -p, --param NAME=EXPR  override a parameter of the active variant\n"
 		"  -c, --color NAME=CEXPR override a colour\n"
 		"  -r, --role NAME=FIELDS override a role\n"
@@ -454,6 +456,7 @@ int main(int argc, char *argv[])
 		{ "light", no_argument, NULL, 'l' },
 		{ "dark", no_argument, NULL, 'd' },
 		{ "depth", required_argument, NULL, 'D' },
+		{ "ground", required_argument, NULL, 'g' },
 		{ "param", required_argument, NULL, 'p' },
 		{ "color", required_argument, NULL, 'c' },
 		{ "role", required_argument, NULL, 'r' },
@@ -469,8 +472,9 @@ int main(int argc, char *argv[])
 		{ NULL, 0, NULL, 0 },
 	};
 	struct override overrides[64];
-	const char *theme = "ember", *sgr_role = NULL, *name;
+	const char *theme = "ember", *sgr_role = NULL, *name, *ground = NULL;
 	enum fypal_variant variant = FYPAL_VARIANT_DARK;
+	uint32_t ground_rgb = FYPAL_RGB_INVALID;
 	struct fypal_caps caps;
 	struct fypal_ctx *ctx;
 	struct winsize ws;
@@ -480,11 +484,14 @@ int main(int argc, char *argv[])
 	size_t noverrides = 0, i;
 	int opt, rc;
 
-	while ((opt = getopt_long(argc, argv, "t:ldD:p:c:r:bxRse:ow:h", lopts,
+	while ((opt = getopt_long(argc, argv, "t:ldD:g:p:c:r:bxRse:ow:h", lopts,
 				  NULL)) != -1) {
 		switch (opt) {
 		case 't':
 			theme = optarg;
+			break;
+		case 'g':
+			ground = optarg;
 			break;
 		case 'l':
 		case 'd':
@@ -551,6 +558,22 @@ int main(int argc, char *argv[])
 		if (depth < FYPAL_DEPTH_256)
 			caps.underline_color = false;
 	}
+	if (ground) {
+		if (!strcmp(ground, "terminal")) {
+			if (!fypal_detect_background(STDOUT_FILENO, &ground_rgb)) {
+				fprintf(stderr, "%s: the terminal did not report its "
+					"background\n", argv[0]);
+				return EXIT_FAILURE;
+			}
+		} else {
+			ground_rgb = fypal_color_parse(ground);
+			if (ground_rgb == FYPAL_RGB_INVALID) {
+				fprintf(stderr, "%s: bad ground colour: %s\n", argv[0],
+					ground);
+				return EXIT_FAILURE;
+			}
+		}
+	}
 	if (!have_variant)
 		variant = fypal_detect_variant(STDOUT_FILENO, NULL);
 	if (width <= 0) {
@@ -572,6 +595,13 @@ int main(int argc, char *argv[])
 	else
 		rc = fypal_ctx_load_builtin(ctx, theme);
 	if (rc) {
+		fprintf(stderr, "%s\n", fypal_ctx_error(ctx));
+		fypal_ctx_destroy(ctx);
+		return EXIT_FAILURE;
+	}
+	/* the ground goes before the overrides, which can then adjust it */
+	if (ground_rgb != FYPAL_RGB_INVALID &&
+	    fypal_ctx_set_ground(ctx, ground_rgb)) {
 		fprintf(stderr, "%s\n", fypal_ctx_error(ctx));
 		fypal_ctx_destroy(ctx);
 		return EXIT_FAILURE;
