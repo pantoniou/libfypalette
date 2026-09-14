@@ -52,6 +52,7 @@ light:                  # overrides for the light variant
 
 roles: {...}            # see section 6
 glyphs: {...}           # see section 6.5
+ground: {l: NAME, c: NAME, h: NAME}   # see section 5.5
 ```
 
 An unknown key is an error. This catches a misspelt section, such as
@@ -201,7 +202,9 @@ chroma (`ramp.chroma`, 0.008). Only the lightness changes:
 | ink | 0.92 | 0.21 | what the reader must read |
 
 The light variant inverts the order of lightness and keeps the hue and the
-chroma.
+chroma. Every step is written from `l.ground`, such as
+`l.raise: l.ground + 0.04`, so a different ground moves the whole ramp and
+keeps the steps between the tokens.
 
 ### 5.2 The hue ring
 
@@ -250,6 +253,40 @@ To see a change without writing a file:
 
 ```sh
 fypalette-show -p ramp.hue=250 -p ring.c=0.06 --sample
+```
+
+### 5.5 The ground of a terminal
+
+A terminal draws its own background, and a theme cannot know it. The
+`ground` key names the parameters that hold the OKLCH lightness, chroma and
+hue of the background of the theme:
+
+```yaml
+ground: {l: l.ground, c: ramp.chroma, h: ramp.hue}
+```
+
+A host that knows the background of its terminal gives it to
+`fypal_ctx_set_ground()`. The library sets the three parameters, in the
+section of the active variant, to the lightness, chroma and hue of that
+colour; a grey gets the hue 0. `fypal_detect_background()` asks the terminal
+for the colour with OSC 11.
+
+The library then does nothing more: the theme decides what follows the
+ground. Ember writes its neutral ramp from the ground, so the ground becomes
+the colour of the terminal, and raise, rule, faint, dim and ink keep their
+steps above (dark) or below (light) it. The hue ring, the consequence
+colours and the syntax colours do not use the ground and do not change. A
+theme without `ground` refuses the call.
+
+`ground` names parameters only: it is in the `all` section, and a variant
+section cannot redefine it. `fypal_ctx_define_ground()` names them through
+the API.
+
+To see a theme over a background without changing a terminal:
+
+```sh
+fypalette-show --dark --ground '#1e1e2e' --sample
+fypalette-show --ground terminal --sample
 ```
 
 ## 6. Roles
