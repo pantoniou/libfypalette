@@ -21,12 +21,14 @@ set(_fypal_tests
     theme_errors
     theme_api
     param_strings
+    theme_ground
     theme_ansi16
     theme_terminal16
     theme_file
     ember_gamut
     ember_ramp
     ember_contrast
+    ember_ground
     role_lookup
     role_fallback
     role_inherit

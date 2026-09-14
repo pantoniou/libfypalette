@@ -366,6 +366,51 @@ static void test_param_strings(void)
 	fypal_ctx_destroy(ctx);
 }
 
+static void test_theme_ground(void)
+{
+	struct fypal_ctx *ctx;
+	struct fypal_lch lch;
+	double v;
+
+	ctx = theme("ground: {l: gl, c: gc, h: gh}\n"
+		    "params: {gc: 0, gh: 0}\n"
+		    "dark: {params: {gl: 0.2}}\n"
+		    "light: {params: {gl: 0.9}}\n"
+		    "colors: {g: 'oklch(gl, gc, gh)', "
+		    "r: 'oklch(gl + 0.05, gc, gh)'}\n");
+	/* the colour of the terminal becomes the ground of the active variant */
+	CHECK(!fypal_ctx_set_ground(ctx, 0x1e1e2e));
+	CHECK(channel_diff(fypal_ctx_color(ctx, "g"), 0x1e1e2e) <= 1);
+	lch = fypal_lab_to_lch(fypal_rgb_to_lab(0x1e1e2e));
+	CHECK(!fypal_ctx_param(ctx, "gl", &v) && fabs(v - lch.L) < 1e-9);
+	CHECK(!fypal_ctx_param(ctx, "gc", &v) && fabs(v - lch.C) < 1e-9);
+	CHECK(fabs(fypal_rgb_to_lab(fypal_ctx_color(ctx, "r")).L -
+		   (lch.L + 0.05)) < 0.01);
+	/* the other variant keeps the ground of the theme */
+	fypal_ctx_set_variant(ctx, FYPAL_VARIANT_LIGHT);
+	CHECK(!fypal_ctx_param(ctx, "gl", &v) && v == 0.9);
+	CHECK(!fypal_ctx_param(ctx, "gc", &v) && v == 0.0);
+	fypal_ctx_destroy(ctx);
+
+	/* a theme that names no ground cannot take one */
+	ctx = theme("params: {a: 1}\n");
+	CHECK(fypal_ctx_set_ground(ctx, 0x000000) == -1);
+	CHECK(strstr(fypal_ctx_error(ctx), "names no ground") != NULL);
+	CHECK(fypal_ctx_define_ground(ctx, "a", "b", NULL) == -1);
+	CHECK(strstr(fypal_ctx_error(ctx), "ground") != NULL);
+	CHECK(!fypal_ctx_define_ground(ctx, "a", "b", "c"));
+	CHECK(!fypal_ctx_set_ground(ctx, 0x000000));
+	CHECK(!fypal_ctx_param(ctx, "a", &v) && fabs(v) < 1e-9);
+	fypal_ctx_destroy(ctx);
+
+	theme_fails("ground: {l: gl, c: gc}", "ground: must name l, c and h",
+		    __LINE__);
+	theme_fails("ground: {l: gl, c: gc, h: gh, x: gx}",
+		    "ground: must name l, c and h", __LINE__);
+	theme_fails("dark: {ground: {l: a, c: b, h: c}}", "unknown key 'ground'",
+		    __LINE__);
+}
+
 static void test_theme_ansi16(void)
 {
 	struct fypal_caps caps = {
@@ -497,6 +542,74 @@ static void test_ember_contrast(void)
 			}
 		}
 	}
+	fypal_ctx_destroy(ctx);
+}
+
+/* Ember over the ground of a terminal: dark and light grounds of real
+ * terminal themes. */
+static void ember_ground_check(struct fypal_ctx *ctx, enum fypal_variant variant,
+			       uint32_t rgb, double raise_step)
+{
+	static const char *const ramp[] = {
+		"ground", "raise", "rule", "faint", "dim", "ink",
+	};
+	static const char *const text[] = { "dim", "ink" };
+	uint32_t ground;
+	double prev, L;
+	size_t i;
+
+	fypal_ctx_set_variant(ctx, variant);
+	CHECK(!fypal_ctx_set_ground(ctx, rgb));
+	ground = fypal_ctx_color(ctx, "ground");
+	CHECK(channel_diff(ground, rgb) <= 1);
+	/* the ramp keeps its steps over the new ground */
+	CHECK(fabs(fypal_rgb_to_lab(fypal_ctx_color(ctx, "raise")).L -
+		   fypal_rgb_to_lab(ground).L - raise_step) < 0.01);
+	prev = variant == FYPAL_VARIANT_DARK ? -1.0 : 2.0;
+	for (i = 0; i < sizeof(ramp) / sizeof(ramp[0]); i++) {
+		L = fypal_rgb_to_lab(fypal_ctx_color(ctx, ramp[i])).L;
+		CHECK(variant == FYPAL_VARIANT_DARK ? L >= prev : L <= prev);
+		prev = L;
+	}
+	for (i = 0; i < sizeof(text) / sizeof(text[0]); i++) {
+		if (fypal_contrast(fypal_ctx_color(ctx, text[i]), ground) < 4.5) {
+			fprintf(stderr, "%s on ground #%06x: %.2f\n", text[i],
+				rgb, fypal_contrast(fypal_ctx_color(ctx, text[i]),
+						    ground));
+			failures++;
+		}
+	}
+}
+
+static void test_ember_ground(void)
+{
+	/* not black: 8 bit steps near black are coarser than a ramp step */
+	static const uint32_t dark[] = { 0x0d1117, 0x1e1e2e, 0x282c34, 0x002b36 };
+	static const uint32_t light[] = { 0xffffff, 0xfdf6e3, 0xeff1f5 };
+	struct fypal_ctx *ctx;
+	struct fypal_lch lch;
+	size_t i;
+
+	/* without a terminal ground, Ember keeps the ramp it always had */
+	ctx = ember(NULL);
+	lch.L = 0.16;
+	lch.C = 0.008;
+	lch.h = 85;
+	CHECK(fypal_ctx_color(ctx, "ground") == fypal_lch_to_rgb(lch));
+	lch.L = 0.20;
+	CHECK(fypal_ctx_color(ctx, "raise") == fypal_lch_to_rgb(lch));
+	lch.L = 0.92;
+	CHECK(fypal_ctx_color(ctx, "ink") == fypal_lch_to_rgb(lch));
+	fypal_ctx_set_variant(ctx, FYPAL_VARIANT_LIGHT);
+	lch.L = 0.95;
+	CHECK(fypal_ctx_color(ctx, "raise") == fypal_lch_to_rgb(lch));
+	lch.L = 0.21;
+	CHECK(fypal_ctx_color(ctx, "ink") == fypal_lch_to_rgb(lch));
+
+	for (i = 0; i < sizeof(dark) / sizeof(dark[0]); i++)
+		ember_ground_check(ctx, FYPAL_VARIANT_DARK, dark[i], 0.04);
+	for (i = 0; i < sizeof(light) / sizeof(light[0]); i++)
+		ember_ground_check(ctx, FYPAL_VARIANT_LIGHT, light[i], -0.03);
 	fypal_ctx_destroy(ctx);
 }
 
@@ -820,12 +933,14 @@ static const struct {
 	{ "theme_errors", test_theme_errors },
 	{ "theme_api", test_theme_api },
 	{ "param_strings", test_param_strings },
+	{ "theme_ground", test_theme_ground },
 	{ "theme_ansi16", test_theme_ansi16 },
 	{ "theme_terminal16", test_theme_terminal16 },
 	{ "theme_file", test_theme_file },
 	{ "ember_gamut", test_ember_gamut },
 	{ "ember_ramp", test_ember_ramp },
 	{ "ember_contrast", test_ember_contrast },
+	{ "ember_ground", test_ember_ground },
 	{ "role_lookup", test_role_lookup },
 	{ "role_fallback", test_role_fallback },
 	{ "role_inherit", test_role_inherit },
