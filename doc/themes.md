@@ -236,6 +236,11 @@ angle changes, so no hue is louder than another. Each hue has one job:
 - `wash_add` and `wash_del` mix `wash` (6% dark, 4% light) of a consequence
   colour into the ground. A diff row takes the wash as its background, so its
   tokens keep their syntax colours.
+- `wash_focus` mixes `wash.focus` (14% dark, 6% light) of blue into the
+  ground. Blue is what you act on, and the wash is the ground of what holds the
+  keys: the prompt, a picker and a focused tile take the same colour. Every
+  colour that carries text reads on it at 4.5:1. At 16 colours it has no form,
+  so a renderer marks focus in another way.
 
 ### 5.4 Changing Ember
 
@@ -373,7 +378,7 @@ These prefixes are the convention of the fyai renderers:
 | `code.<capture>` | syntax highlighting: `<capture>` is the tree-sitter capture name, for example `code.keyword.control` |
 | `diff.*` | diff rows and line numbers |
 | `mermaid.*` | diagrams |
-| `pane.*`, `tile.*` | the work pane |
+| `pane.*`, `tile.*` | the work pane; `pane.focus` is the ground of what holds the keys |
 
 Tree-sitter capture names are already dot-separated hierarchies
 (`keyword.control.conditional`), so the lookup fallback maps a precise capture
