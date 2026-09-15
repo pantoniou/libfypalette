@@ -54,6 +54,8 @@ dark:
     syntax.l: 0.72
     syntax.c: 0.07
     wash: 0.06
+    # what holds the keys stands on a wash of blue: you act there
+    wash.focus: 0.14
     bright.l: ring.l + 0.08
   ansi16:
     ground: default
@@ -79,6 +81,7 @@ dark:
     syn_preproc: 1
     wash_add: none
     wash_del: none
+    wash_focus: none
   terminal16:
     0: raise
     7: dim
@@ -100,6 +103,7 @@ light:
     syntax.l: 0.50
     syntax.c: 0.08
     wash: 0.04
+    wash.focus: 0.06
     bright.l: ring.l - 0.08
   ansi16:
     ground: default
@@ -125,6 +129,7 @@ light:
     syn_preproc: 1
     wash_add: none
     wash_del: none
+    wash_focus: none
   terminal16:
     0: ink
     7: rule
@@ -158,6 +163,8 @@ colors:
   # the wash carries the sign of a diff row, so its tokens keep their syntax
   wash_add: mix(ground, green_strong, wash)
   wash_del: mix(ground, coral_strong, wash)
+  # the ground of what holds the keys: the prompt, a picker, a focused tile
+  wash_focus: mix(ground, blue, wash.focus)
 
 terminal16:
   1: oklch(strong.l, strong.c, hue.coral)
@@ -370,6 +377,8 @@ roles:
   pane:
     cap: {fg: faint}
     sep: {fg: rule}
+    # one ground wherever the keys are
+    focus: {bg: wash_focus}
 
   tile:
     head:
