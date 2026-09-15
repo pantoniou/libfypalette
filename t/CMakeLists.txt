@@ -28,6 +28,7 @@ set(_fypal_tests
     ember_gamut
     ember_ramp
     ember_contrast
+    ember_focus
     ember_ground
     role_lookup
     role_fallback

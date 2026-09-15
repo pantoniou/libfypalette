@@ -545,6 +545,44 @@ static void test_ember_contrast(void)
 	fypal_ctx_destroy(ctx);
 }
 
+static void test_ember_focus(void)
+{
+	static const char *const text[] = {
+		"dim", "ink", "gold", "blue", "violet", "cyan", "green",
+		"coral", "green_strong", "coral_strong",
+	};
+	const struct fypal_style *style;
+	const struct fypal_role *role;
+	struct fypal_ctx *ctx;
+	uint32_t wash, ground, c;
+	size_t i;
+	int v;
+
+	/* the ground of what holds the keys is a wash, and text reads on it */
+	ctx = ember(NULL);
+	for (v = FYPAL_VARIANT_DARK; v <= FYPAL_VARIANT_LIGHT; v++) {
+		fypal_ctx_set_variant(ctx, (enum fypal_variant)v);
+		wash = fypal_ctx_color(ctx, "wash_focus");
+		ground = fypal_ctx_color(ctx, "ground");
+		CHECK(wash != FYPAL_RGB_INVALID);
+		CHECK(wash != ground);
+		for (i = 0; i < sizeof(text) / sizeof(text[0]); i++) {
+			c = fypal_ctx_color(ctx, text[i]);
+			if (fypal_contrast(c, wash) < 4.5) {
+				fprintf(stderr, "%s on wash_focus: %.2f (variant %d)\n",
+					text[i], fypal_contrast(c, wash), v);
+				failures++;
+			}
+		}
+	}
+	/* the work pane names it for a renderer */
+	role = fypal_ctx_role(ctx, "pane.focus");
+	CHECK(role != NULL);
+	style = role ? fypal_role_style(role) : NULL;
+	CHECK(style && style->bg == fypal_ctx_color_ref(ctx, "wash_focus"));
+	fypal_ctx_destroy(ctx);
+}
+
 /* Ember over the ground of a terminal: dark and light grounds of real
  * terminal themes. */
 static void ember_ground_check(struct fypal_ctx *ctx, enum fypal_variant variant,
@@ -940,6 +978,7 @@ static const struct {
 	{ "ember_gamut", test_ember_gamut },
 	{ "ember_ramp", test_ember_ramp },
 	{ "ember_contrast", test_ember_contrast },
+	{ "ember_focus", test_ember_focus },
 	{ "ember_ground", test_ember_ground },
 	{ "role_lookup", test_role_lookup },
 	{ "role_fallback", test_role_fallback },
