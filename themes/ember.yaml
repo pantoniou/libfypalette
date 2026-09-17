@@ -55,7 +55,7 @@ dark:
     syntax.c: 0.07
     wash: 0.06
     # what holds the keys stands on a wash of blue: you act there
-    wash.focus: 0.14
+    wash.focus: 0.24
     bright.l: ring.l + 0.08
   ansi16:
     ground: default
@@ -103,7 +103,7 @@ light:
     syntax.l: 0.50
     syntax.c: 0.08
     wash: 0.04
-    wash.focus: 0.06
+    wash.focus: 0.10
     bright.l: ring.l - 0.08
   ansi16:
     ground: default
