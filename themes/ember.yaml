@@ -220,6 +220,8 @@ glyphs:
     fail: {utf: "→", ascii: "->"}
     cause: {utf: "✖", ascii: "x"}
   elision: {utf: "⋯", ascii: "..."}
+  pane:
+    edge: {utf: "▌", ascii: "|"}
   tile:
     shell: "$"
     agent: "@"
@@ -379,6 +381,9 @@ roles:
     sep: {fg: rule}
     # one ground wherever the keys are
     focus: {bg: wash_focus}
+    # the edge of what holds the keys: a wash that text reads on is faint
+    # over a black or a white ground, and the edge is seen on any ground
+    edge: {fg: blue}
 
   tile:
     head:
