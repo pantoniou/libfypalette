@@ -378,7 +378,7 @@ These prefixes are the convention of the fyai renderers:
 | `code.<capture>` | syntax highlighting: `<capture>` is the tree-sitter capture name, for example `code.keyword.control` |
 | `diff.*` | diff rows and line numbers |
 | `mermaid.*` | diagrams |
-| `pane.*`, `tile.*` | the work pane; `pane.focus` is the ground of what holds the keys |
+| `pane.*`, `tile.*` | the work pane; `pane.focus` is the ground of what holds the keys, and `pane.edge` marks its edge |
 
 Tree-sitter capture names are already dot-separated hierarchies
 (`keyword.control.conditional`), so the lookup fallback maps a precise capture
