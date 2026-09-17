@@ -580,6 +580,13 @@ static void test_ember_focus(void)
 	CHECK(role != NULL);
 	style = role ? fypal_role_style(role) : NULL;
 	CHECK(style && style->bg == fypal_ctx_color_ref(ctx, "wash_focus"));
+	/* and marks its edge, which is seen on any ground */
+	role = fypal_ctx_role(ctx, "pane.edge");
+	CHECK(role != NULL);
+	style = role ? fypal_role_style(role) : NULL;
+	CHECK(style && style->fg == fypal_ctx_color_ref(ctx, "blue"));
+	CHECK(fypal_ctx_glyph(ctx, "pane.edge", false) != NULL);
+	CHECK(fypal_ctx_glyph(ctx, "pane.edge", true) != NULL);
 	fypal_ctx_destroy(ctx);
 }
 
