@@ -900,6 +900,9 @@ size_t fypal_probe_take_input(struct fypal_probe *pr, char *buf, size_t size)
 	n = pr->input_len - pr->input_off;
 	if (n > size)
 		n = size;
+	/* with no keys, pr->input is NULL, which memcpy() must not get */
+	if (!n)
+		return 0;
 	memcpy(buf, pr->input + pr->input_off, n);
 	pr->input_off += n;
 	return n;
