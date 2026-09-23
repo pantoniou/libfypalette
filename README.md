@@ -33,4 +33,5 @@ libfypalette requires libfyaml.
 ./build/bin/fypalette-show -l --sample        # the light variant
 ./build/bin/fypalette-show -D 256 --bands     # as a 256 colour terminal sees it
 ./build/bin/fypalette-show -p ramp.hue=250 -s # a cool ground
+./build/bin/fypalette-probe                   # what this terminal answers
 ```

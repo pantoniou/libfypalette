@@ -273,8 +273,8 @@ ground: {l: l.ground, c: ramp.chroma, h: ramp.hue}
 A host that knows the background of its terminal gives it to
 `fypal_ctx_set_ground()`. The library sets the three parameters, in the
 section of the active variant, to the lightness, chroma and hue of that
-colour; a grey gets the hue 0. `fypal_detect_background()` asks the terminal
-for the colour with OSC 11.
+colour; a grey gets the hue 0. `fypal_detect_background()` gives the
+background colour that the terminal probe read (section 7.1).
 
 The library then does nothing more: the theme decides what follows the
 ground. Ember writes its neutral ramp from the ground, so the ground becomes
@@ -460,8 +460,102 @@ checks that the descriptor is a terminal. The Linux console gets no italic,
 dim or strike. Terminals that are known to draw a curly or coloured underline
 get `undercurl` and `underline_color`. A terminal multiplexer gets neither.
 
-`fypal_detect_variant()` reads `COLORFGBG`, then sends an OSC 11 query to the
-controlling terminal and waits 100 ms for the answer.
+`fypal_term_variant()` gives the variant for a probe result: the scheme that
+the terminal reported, then `COLORFGBG`, then the background colour. The
+terminal's own report is exact. `COLORFGBG` can come from a different
+terminal, and deciding light or dark from a mid-grey background is a guess.
+`fypal_detect_variant()` and `fypal_detect_background()` probe the terminal
+on each call; keys typed during that probe are lost.
+
+#### The terminal probe
+
+A `struct fypal_probe` asks the terminal what it supports. The caller makes
+it with `fypal_probe_create()`, runs it one time with `fypal_probe_run()`,
+reads the `struct fypal_term` from `fypal_probe_result()`, and destroys it
+with `fypal_probe_destroy()`. The library keeps no state of its own. The
+probe sends all its queries in one write, with DA1 last:
+
+| Query | Result |
+|---|---|
+| OSC 11, OSC 10 | background and foreground colours |
+| OSC 4 `N ; ?`, N 0 to 15 | the 16 ANSI colours |
+| `CSI ? 996 n` | light or dark scheme |
+| DECRQM 2026 | synchronized output |
+| DECRQM 2027 | grapheme clusters, and whether the mode is on |
+| DECRQM 2031 | light/dark change reports |
+| DECRQM 1004, 1006, 1016, 2004, 2048 | focus events, SGR mouse, SGR pixel mouse, bracketed paste, resize reports |
+| `CSI ? u` | kitty keyboard protocol |
+| XTQMODKEYS `CSI ? 4 m` | modifyOtherKeys level |
+| XTVERSION `CSI > 0 q` | terminal name and version |
+| DA2 `CSI > c` | terminal type and version |
+| APC `G` query | kitty graphics protocol |
+| XTSMGRAPHICS `CSI ? 1 ; 1 ; 0 S` | number of sixel colour registers |
+| `CSI 16 t`, `CSI 14 t` | cell size and text area size in pixels |
+| XTGETTCAP `RGB`, `Tc` | truecolor |
+| XTGETTCAP `Smulx`, `Su` | styled underline |
+| XTGETTCAP `Smol` | overline |
+| XTGETTCAP `Ms` | OSC 52 clipboard |
+| OSC 99 query | kitty notifications, and whether they can play a sound |
+| DA1 `CSI c` | terminal class; attribute 4 means sixel |
+
+A terminal answers queries in order, and every terminal answers DA1. So when
+the DA1 reply arrives, all the other replies have arrived too, and a query
+with no reply is not supported. The probe does not decide anything from how
+long a reply takes.
+
+The probe waits for the DA1 reply for at most 1000 ms.
+`$FYPAL_PROBE_TIMEOUT_MS` changes this limit. A test suite on a slow machine
+can set a long limit: a terminal that answers ends the probe at once. If the
+DA1 reply does not arrive, `FYPAL_TERM_ANSWERED` is clear and the result may
+be incomplete.
+
+The probe sends nothing if there is no terminal, if `TERM` is `dumb`, or if
+the process is in a background process group. Echo is off during the probe.
+Bytes that arrive and are not replies are keys that the user typed;
+`fypal_probe_take_input()` returns them, and the program must read them
+before it reads the terminal.
+
+A process whose terminal was already probed by another process, such as a
+child that draws on a terminal emulated by its parent, uses the result of
+that probe and does not probe again.
+
+#### Terminal multiplexers
+
+tmux answers all the queries itself, in order. Its answers are the right
+ones, because tmux does the drawing.
+
+GNU screen answers DA1 itself but passes OSC queries to the outer terminal.
+The outer terminal's replies then arrive after screen's DA1 reply, too late.
+Under screen (`$STY` is set, or `TERM` starts with `screen` and `$TMUX` is
+not set), the probe sends only the colour and scheme queries, and DA1, each
+wrapped in `ESC P ... ESC \` so that screen passes it to the outer terminal.
+OSC queries end in BEL inside the wrapper. No XTGETTCAP query is sent,
+because screen prints it.
+
+`FYPAL_TERM_MULTIPLEXER` is set under screen and under tmux.
+
+#### Your own queries
+
+`fypal_probe_add_query()` adds a query to the probe. Added queries are sent
+after the built-in ones and before DA1. The library keeps each reply it does
+not parse, for `fypal_probe_unknown()`, if no key can produce it: an OSC, DCS
+or APC string, or a CSI sequence with a private marker or an intermediate
+byte. The program decides what the reply means. A reply that is a plain CSI
+sequence looks like a key and is treated as typed input.
+
+#### Checking a terminal
+
+`fypalette-probe` prints the probe result for the terminal it runs in. Each
+argument is an extra query, with `\e` for ESC; the tool also prints the
+replies it did not parse. To record the raw replies, run it under
+`script --log-in FILE`.
+
+#### Sound
+
+No query asks a terminal whether it can play sound. BEL works everywhere.
+kitty's OSC 99 notifications can play a sound, and the probe reports this
+(`FYPAL_TERM_NOTIFY_SOUND`). Other terminals have sound sequences, such as
+DECPS, that cannot be queried; use the name from XTVERSION to decide.
 
 ### 7.2 Escapes
 
