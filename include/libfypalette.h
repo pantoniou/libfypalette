@@ -153,18 +153,153 @@ enum fypal_variant {
 };
 
 /*
- * The variant that matches the terminal background: $COLORFGBG, then an OSC
- * 11 query on the controlling terminal. *known is false when neither
- * answered and the result is the dark default.
+ * Probe the terminal and return the variant that matches it, as
+ * fypal_term_variant() decides. Each call probes again, and keys typed
+ * during the probe are lost: a program that reads keys uses a
+ * struct fypal_probe instead.
  */
 FYPAL_EXPORT enum fypal_variant fypal_detect_variant(int fd, bool *known);
 
 /*
- * The background colour of the terminal, from an OSC 11 query on the
- * controlling terminal, in *rgb. False, with *rgb unchanged, when the
- * terminal did not answer.
+ * Probe the terminal and return its background colour in *rgb. Returns
+ * false, and leaves *rgb unchanged, if the terminal did not report it. Each
+ * call probes again, and keys typed during the probe are lost.
  */
 FYPAL_EXPORT bool fypal_detect_background(int fd, uint32_t *rgb);
+
+/*
+ * The terminal probe sends all its queries in one write and ends them with
+ * DA1. A terminal answers queries in order, and every terminal answers DA1.
+ * So when the DA1 reply arrives, all the other replies have arrived too, and
+ * a query with no reply is not supported. The probe waits for the DA1 reply
+ * for at most 1000 ms; $FYPAL_PROBE_TIMEOUT_MS changes this limit.
+ *
+ * The queries: OSC 10 and 11 (colours), OSC 4 (the 16 ANSI colours),
+ * CSI ? 996 n (light or dark scheme), DECRQM for modes 1004, 1006, 1016,
+ * 2004, 2026, 2027, 2031 and 2048, CSI ? u (kitty keyboard), XTVERSION, DA2,
+ * the kitty graphics query, XTSMGRAPHICS (sixel colours), CSI 14 t and
+ * CSI 16 t (sizes in pixels), XTGETTCAP (RGB, Tc, Smulx, Su, Smol, Ms),
+ * XTQMODKEYS and the OSC 99 query (kitty notifications). Queries added with
+ * fypal_probe_add_query() follow, then DA1.
+ *
+ * tmux answers all the queries itself. GNU screen answers DA1 itself, so
+ * under screen the probe sends only the colour and scheme queries, and DA1,
+ * each wrapped for screen to pass to the outer terminal.
+ */
+#define FYPAL_TERM_PROBED	(1U << 0)	/* the exchange was sent */
+#define FYPAL_TERM_ANSWERED	(1U << 1)	/* DA1 reply arrived: results are complete */
+#define FYPAL_TERM_BACKGROUND	(1U << 2)	/* background is valid */
+#define FYPAL_TERM_FOREGROUND	(1U << 3)	/* foreground is valid */
+#define FYPAL_TERM_SYNC		(1U << 4)	/* synchronized output, mode 2026 */
+#define FYPAL_TERM_KITTY_KEYS	(1U << 5)	/* the kitty keyboard protocol */
+#define FYPAL_TERM_GRAPHEMES	(1U << 6)	/* grapheme clusters, mode 2027 */
+#define FYPAL_TERM_THEME_REPORT	(1U << 7)	/* light/dark change reports, 2031 */
+#define FYPAL_TERM_SIXEL	(1U << 8)	/* DA1 attribute 4 */
+#define FYPAL_TERM_KITTY_GRAPHICS (1U << 9)	/* the kitty graphics protocol */
+#define FYPAL_TERM_TRUECOLOR	(1U << 10)	/* XTGETTCAP RGB or Tc */
+#define FYPAL_TERM_STYLED_UL	(1U << 11)	/* XTGETTCAP Smulx */
+#define FYPAL_TERM_CELL_PIXELS	(1U << 12)	/* cell_width, cell_height valid */
+#define FYPAL_TERM_WINDOW_PIXELS (1U << 13)	/* window_width, _height valid */
+#define FYPAL_TERM_SCHEME	(1U << 14)	/* the terminal reported its scheme */
+#define FYPAL_TERM_SCHEME_LIGHT	(1U << 15)	/* ... and it is light */
+#define FYPAL_TERM_DA2		(1U << 16)	/* da2_type, da2_version valid */
+#define FYPAL_TERM_FOCUS_EVENTS	(1U << 17)	/* mode 1004 */
+#define FYPAL_TERM_SGR_MOUSE	(1U << 18)	/* mode 1006 */
+#define FYPAL_TERM_SGR_PIXEL_MOUSE (1U << 19)	/* mode 1016 */
+#define FYPAL_TERM_BRACKETED_PASTE (1U << 20)	/* mode 2004 */
+#define FYPAL_TERM_INBAND_RESIZE (1U << 21)	/* resize reports, mode 2048 */
+#define FYPAL_TERM_CLIPBOARD	(1U << 22)	/* XTGETTCAP Ms: OSC 52 */
+#define FYPAL_TERM_OVERLINE	(1U << 23)	/* XTGETTCAP Smol */
+#define FYPAL_TERM_MODIFY_KEYS	(1U << 24)	/* modify_other_keys valid */
+#define FYPAL_TERM_NOTIFY	(1U << 25)	/* kitty notifications, OSC 99 */
+#define FYPAL_TERM_NOTIFY_SOUND	(1U << 26)	/* ... that can play a sound */
+#define FYPAL_TERM_GRAPHEMES_SET (1U << 27)	/* mode 2027 is on already */
+#define FYPAL_TERM_MULTIPLEXER	(1U << 28)	/* running under screen or tmux */
+
+struct fypal_term {
+	unsigned int flags;		/* FYPAL_TERM_* */
+	uint32_t background;		/* 0xRRGGBB */
+	uint32_t foreground;		/* 0xRRGGBB */
+	unsigned int cell_width;	/* pixels */
+	unsigned int cell_height;
+	unsigned int window_width;	/* pixels of the text area */
+	unsigned int window_height;
+	unsigned int sixel_colors;	/* colour registers; 0 when unknown */
+	unsigned int da1_class;		/* first DA1 parameter, e.g. 62, 64 */
+	unsigned int da2_type;		/* DA2: terminal type */
+	unsigned int da2_version;	/* DA2: firmware version */
+	unsigned int modify_other_keys;	/* XTQMODKEYS level, 0 to 3 */
+	char name[64];			/* XTVERSION, "" when unknown */
+	uint32_t ansi[16];		/* the ANSI palette, 0xRRGGBB */
+	unsigned int ansi_known;	/* bit N: ansi[N] is valid */
+};
+
+/*
+ * The variant that matches a probe result. The order is: the scheme that the
+ * terminal reported, then $COLORFGBG, then the background colour. If none is
+ * known, *known is false and the result is dark. term may be NULL.
+ */
+FYPAL_EXPORT enum fypal_variant fypal_term_variant(const struct fypal_term *term,
+						   bool *known);
+
+/* One probe of a terminal. The caller owns it. Not thread-safe. */
+struct fypal_probe;
+
+/* A new probe, or NULL if out of memory. */
+FYPAL_EXPORT struct fypal_probe *fypal_probe_create(void);
+
+FYPAL_EXPORT void fypal_probe_destroy(struct fypal_probe *probe);
+
+/*
+ * Add a query of your own. It is sent after the built-in queries and before
+ * DA1. Returns -1 if the probe already ran, or if the added queries exceed
+ * 4 KiB.
+ *
+ * A reply that the library does not parse is kept, for
+ * fypal_probe_unknown(), if no key can produce it: an OSC, DCS or APC
+ * string, or a CSI sequence with a private marker (? > < =) or an
+ * intermediate byte. A reply that is a plain CSI sequence, such as the reply
+ * to CSI 18 t, looks like a key and is treated as typed input.
+ *
+ * Under GNU screen the added queries are wrapped for screen to pass to the
+ * outer terminal. The wrapper ends at the first ST, so end an OSC query with
+ * BEL.
+ */
+FYPAL_EXPORT int fypal_probe_add_query(struct fypal_probe *probe,
+				       const char *seq, size_t len);
+
+/*
+ * Probe the controlling terminal, or fd if there is none. Blocks until the
+ * DA1 reply or the time limit. Sends nothing if there is no terminal, if
+ * $TERM is "dumb", or if the process is in a background process group; the
+ * result then has no flags. A probe runs one time: returns -1 if it already
+ * ran, else 0.
+ */
+FYPAL_EXPORT int fypal_probe_run(struct fypal_probe *probe, int fd);
+
+/* The result. Valid until the probe is destroyed. */
+FYPAL_EXPORT const struct fypal_term *
+fypal_probe_result(const struct fypal_probe *probe);
+
+/*
+ * Bytes that arrived during the probe and are not replies are keys that the
+ * user typed. Copy up to size of them into buf, in the order they were typed,
+ * and remove them. Returns the number of bytes; 0 when none remain. Read all
+ * of them before reading the terminal.
+ */
+FYPAL_EXPORT size_t fypal_probe_take_input(struct fypal_probe *probe,
+					   char *buf, size_t size);
+
+/* The number of replies that the library did not parse. */
+FYPAL_EXPORT size_t fypal_probe_unknown_count(const struct fypal_probe *probe);
+
+/*
+ * An unparsed reply, in the order the replies arrived: the whole sequence
+ * from its ESC, with its length in *len. NULL if index is out of range.
+ * Valid until the probe is destroyed.
+ */
+FYPAL_EXPORT const char *fypal_probe_unknown(const struct fypal_probe *probe,
+					     size_t index, size_t *len);
 
 /* ---------------------------------------------------------------------
  * Themes
