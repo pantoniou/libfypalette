@@ -10,6 +10,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__unix__) || defined(__APPLE__)
+#include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
+#include <sys/ioctl.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
+#define FYPAL_TEST_PTY 1
+#endif
+
 #include "libfypalette.h"
 
 static int failures;
@@ -960,6 +971,413 @@ static void test_ember_glyphs(void)
 	fypal_ctx_destroy(ctx);
 }
 
+#ifdef FYPAL_TEST_PTY
+
+/* The probe child runs as under GNU screen; the parent saw its queries. */
+static bool pty_screen;
+/* The parent interrupts the probe child with signals before it answers. */
+static bool pty_signals;
+
+static void on_alarm(int sig)
+{
+	(void)sig;
+}
+static bool pty_seen_screen;
+
+/* What a probe in a child on a pseudo-terminal saw. */
+struct probe_result {
+	struct fypal_term term;
+	char input[256];
+	size_t input_len;
+	char unknown[256];		/* the unknown replies, '|' after each */
+	long ms;
+	bool ok;
+};
+
+/*
+ * Run fypal_probe_run() in a child whose controlling terminal is a new
+ * pseudo-terminal, and play the terminal: wait for the DA1 query, then write
+ * answer one byte at a time, so a reply arrives split over reads.
+ */
+static void probe_on_pty(const char *answer, size_t answer_len,
+			 const char *timeout_ms, const char *extra,
+			 struct probe_result *res)
+{
+	struct fypal_probe *pr;
+	struct sigaction sa;
+	struct timespec t0, t1, pause = { .tv_nsec = 1000000 };
+	struct pollfd pfd;
+	char seen[1024], name[128];
+	const char *u;
+	size_t used = 0, i, k, n2;
+	ssize_t n;
+	int master, slave, held, pipefd[2], status;
+	pid_t pid;
+
+	memset(res, 0, sizeof(*res));
+	master = posix_openpt(O_RDWR | O_NOCTTY);
+	if (master < 0 || grantpt(master) || unlockpt(master) ||
+	    pipe(pipefd)) {
+		fprintf(stderr, "pseudo-terminal: cannot make one\n");
+		failures++;
+		return;
+	}
+	/* a master with no open slave reads EIO: hold one until the end */
+	snprintf(name, sizeof(name), "%s", ptsname(master));
+	held = open(name, O_RDWR | O_NOCTTY);
+	pid = fork();
+	if (pid == 0) {
+		close(master);
+		close(held);
+		close(pipefd[0]);
+		setsid();
+		slave = open(name, O_RDWR);
+		if (slave < 0)
+			_exit(1);
+		ioctl(slave, TIOCSCTTY, 0);
+		setenv("FYPAL_PROBE_TIMEOUT_MS", timeout_ms, 1);
+		setenv("TERM", "xterm-256color", 1);
+		unsetenv("TMUX");
+		if (pty_screen)
+			setenv("STY", "1.pts-0.host", 1);
+		else
+			unsetenv("STY");
+		/* no SA_RESTART: a signal makes poll() and read() fail with
+		 * EINTR */
+		memset(&sa, 0, sizeof(sa));
+		sa.sa_handler = on_alarm;
+		sigaction(SIGUSR1, &sa, NULL);
+		pr = fypal_probe_create();
+		if (!pr || (extra && fypal_probe_add_query(pr, extra,
+							   strlen(extra))))
+			_exit(1);
+		clock_gettime(CLOCK_MONOTONIC, &t0);
+		fypal_probe_run(pr, -1);
+		res->term = *fypal_probe_result(pr);
+		clock_gettime(CLOCK_MONOTONIC, &t1);
+		res->ms = (t1.tv_sec - t0.tv_sec) * 1000 +
+			  (t1.tv_nsec - t0.tv_nsec) / 1000000;
+		res->input_len = fypal_probe_take_input(pr, res->input,
+							sizeof(res->input));
+		for (k = 0; k < fypal_probe_unknown_count(pr); k++) {
+			u = fypal_probe_unknown(pr, k, &n2);
+			n = (ssize_t)strlen(res->unknown);
+			snprintf(res->unknown + n, sizeof(res->unknown) - (size_t)n,
+				 "%.*s|", (int)n2, u);
+		}
+		fypal_probe_destroy(pr);
+		res->ok = true;
+		n = write(pipefd[1], res, sizeof(*res));
+		_exit(n == (ssize_t)sizeof(*res) ? 0 : 1);
+	}
+	close(pipefd[1]);
+	/* the query is written after the mode change, so the answer is raw */
+	while (used < sizeof(seen) - 1) {
+		pfd.fd = master;
+		pfd.events = POLLIN;
+		if (poll(&pfd, 1, 30000) <= 0)
+			break;
+		n = read(master, seen + used, sizeof(seen) - 1 - used);
+		if (n <= 0)
+			break;
+		used += (size_t)n;
+		seen[used] = '\0';
+		if (strstr(seen, "\033[c"))
+			break;
+	}
+	if (extra && !strstr(seen, extra)) {
+		fprintf(stderr, "the query of the application was not sent\n");
+		failures++;
+	}
+	if (pty_screen)
+		pty_seen_screen = strstr(seen, "\033P\033]11;?\a\033\\") &&
+				  strstr(seen, "\033P\033[c\033\\") &&
+				  !strstr(seen, "+q");
+	else
+		CHECK(strstr(seen, "\033]11;?\033\\") != NULL);
+	CHECK(strstr(seen, "\033[c") != NULL);
+	/* the child now waits in poll(): interrupt it there */
+	for (i = 0; pty_signals && i < 50; i++) {
+		kill(pid, SIGUSR1);
+		nanosleep(&pause, NULL);
+	}
+	for (i = 0; i < answer_len; i++)
+		CHECK(write(master, answer + i, 1) == 1);
+	n = read(pipefd[0], res, sizeof(*res));
+	if (n != (ssize_t)sizeof(*res))
+		res->ok = false;
+	waitpid(pid, &status, 0);
+	close(held);
+	close(pipefd[0]);
+	close(master);
+	if (!res->ok) {
+		fprintf(stderr, "probe child gave no result\n");
+		failures++;
+	}
+}
+
+#define PROBE_ON_PTY(s, t, r)	probe_on_pty((s), sizeof(s) - 1, (t), NULL, (r))
+
+static void test_probe_answer(void)
+{
+	struct probe_result r;
+
+	PROBE_ON_PTY("\033]11;rgb:ffff/ffff/ffff\033\\"
+		     "\033]10;rgb:12/34/56\a"
+		     "\033[?2026;2$y"
+		     "\033[?1u"
+		     "\033[?62;22c", "30000", &r);
+	CHECK(r.term.flags & FYPAL_TERM_PROBED);
+	CHECK(r.term.flags & FYPAL_TERM_ANSWERED);
+	CHECK(r.term.flags & FYPAL_TERM_BACKGROUND);
+	CHECK(r.term.background == 0xffffff);
+	CHECK(r.term.flags & FYPAL_TERM_FOREGROUND);
+	CHECK(r.term.foreground == 0x123456);
+	CHECK(r.term.flags & FYPAL_TERM_SYNC);
+	CHECK(r.term.flags & FYPAL_TERM_KITTY_KEYS);
+	CHECK(r.input_len == 0);
+}
+
+/* Graphics, the name, the pixel sizes and terminfo capabilities. */
+static void test_probe_graphics(void)
+{
+	struct probe_result r;
+
+	PROBE_ON_PTY("\033[?2027;3$y"
+		     "\033[?2031;2$y"
+		     "\033P>|xterm(390)\033\\"
+		     "\033_Gi=31;OK\033\\"
+		     "\033[?1;0;256S"
+		     "\033[6;20;10t"
+		     "\033[4;600;800t"
+		     "\033P1+r524742=38\033\\"
+		     "\033P0+r\033\\"
+		     "\033P1+r536d756c78=1b\033\\"
+		     "\033[?997;2n"
+		     "\033[?64;1;4;22c", "30000", &r);
+	CHECK(r.term.flags & FYPAL_TERM_ANSWERED);
+	CHECK(r.term.flags & FYPAL_TERM_GRAPHEMES);
+	CHECK(r.term.flags & FYPAL_TERM_GRAPHEMES_SET);
+	CHECK(r.term.flags & FYPAL_TERM_THEME_REPORT);
+	CHECK(!strcmp(r.term.name, "xterm(390)"));
+	CHECK(r.term.flags & FYPAL_TERM_KITTY_GRAPHICS);
+	CHECK(r.term.flags & FYPAL_TERM_SIXEL);
+	CHECK(r.term.sixel_colors == 256);
+	CHECK(r.term.da1_class == 64);
+	CHECK((r.term.flags & FYPAL_TERM_CELL_PIXELS) &&
+	      r.term.cell_width == 10 && r.term.cell_height == 20);
+	CHECK((r.term.flags & FYPAL_TERM_WINDOW_PIXELS) &&
+	      r.term.window_width == 800 && r.term.window_height == 600);
+	CHECK(r.term.flags & FYPAL_TERM_TRUECOLOR);
+	CHECK(r.term.flags & FYPAL_TERM_STYLED_UL);
+	CHECK((r.term.flags & FYPAL_TERM_SCHEME) &&
+	      (r.term.flags & FYPAL_TERM_SCHEME_LIGHT));
+	CHECK(r.input_len == 0);
+}
+
+/* The input modes, the type, modifyOtherKeys, notifications, the palette. */
+static void test_probe_modes(void)
+{
+	struct probe_result r;
+
+	PROBE_ON_PTY("\033[?2027;2$y"
+		     "\033[?1004;2$y"
+		     "\033[?1006;2$y"
+		     "\033[?1016;0$y"
+		     "\033[?2004;2$y"
+		     "\033[?2048;2$y"
+		     "\033P1+r4d73=1b\033\\"
+		     "\033P1+r536d6f6c=1b\033\\"
+		     "\033P1+r5375\033\\"
+		     "\033[>1;4000;29c"
+		     "\033[>4;2m"
+		     "\033]99;i=fypal:p=?;a=focus:s=system,silent\033\\"
+		     "\033]4;1;rgb:cccc/0000/0000\033\\"
+		     "\033]4;15;rgb:ff/ff/ff\a"
+		     "\033[?62c", "30000", &r);
+	CHECK(r.term.flags & FYPAL_TERM_ANSWERED);
+	CHECK((r.term.flags & FYPAL_TERM_GRAPHEMES) &&
+	      !(r.term.flags & FYPAL_TERM_GRAPHEMES_SET));
+	CHECK(r.term.flags & FYPAL_TERM_FOCUS_EVENTS);
+	CHECK(r.term.flags & FYPAL_TERM_SGR_MOUSE);
+	CHECK(!(r.term.flags & FYPAL_TERM_SGR_PIXEL_MOUSE));
+	CHECK(r.term.flags & FYPAL_TERM_BRACKETED_PASTE);
+	CHECK(r.term.flags & FYPAL_TERM_INBAND_RESIZE);
+	CHECK(r.term.flags & FYPAL_TERM_CLIPBOARD);
+	CHECK(r.term.flags & FYPAL_TERM_OVERLINE);
+	CHECK(r.term.flags & FYPAL_TERM_STYLED_UL);
+	CHECK((r.term.flags & FYPAL_TERM_DA2) && r.term.da2_type == 1 &&
+	      r.term.da2_version == 4000);
+	CHECK((r.term.flags & FYPAL_TERM_MODIFY_KEYS) &&
+	      r.term.modify_other_keys == 2);
+	CHECK(r.term.flags & FYPAL_TERM_NOTIFY);
+	CHECK(r.term.flags & FYPAL_TERM_NOTIFY_SOUND);
+	CHECK(r.term.ansi_known == ((1U << 1) | (1U << 15)));
+	CHECK(r.term.ansi[1] == 0xcc0000 && r.term.ansi[15] == 0xffffff);
+	CHECK(r.input_len == 0 && !r.unknown[0]);
+}
+
+/*
+ * An added query is sent before DA1. An unparsed reply that no key can
+ * produce is kept whole; a plain CSI sequence is typed input.
+ */
+static void test_probe_unknown(void)
+{
+	struct probe_result r;
+	static const char answer[] =
+		"\033]777;hello\033\\"
+		"\033[>1;2x"
+		"\033[18;24;80t"
+		"\033[?62c";
+
+	probe_on_pty(answer, sizeof(answer) - 1, "30000", "\033]777;?\033\\",
+		     &r);
+	CHECK(r.term.flags & FYPAL_TERM_ANSWERED);
+	CHECK(!strcmp(r.unknown, "\033]777;hello\033\\|\033[>1;2x|"));
+	CHECK(r.input_len == 11 && !memcmp(r.input, "\033[18;24;80t", 11));
+}
+
+/*
+ * Under GNU screen the colour queries and DA1 are wrapped for screen to pass
+ * on, no XTGETTCAP query is sent, and the outer terminal's DA1 ends the probe.
+ */
+static void test_probe_screen(void)
+{
+	struct probe_result r;
+
+	pty_screen = true;
+	PROBE_ON_PTY("\033]11;rgb:3030/0a0a/2424\a"
+		     "\033[?64;22c", "30000", &r);
+	pty_screen = false;
+	CHECK(r.term.flags & FYPAL_TERM_ANSWERED);
+	CHECK(r.term.flags & FYPAL_TERM_MULTIPLEXER);
+	CHECK((r.term.flags & FYPAL_TERM_BACKGROUND) &&
+	      r.term.background == 0x300a24);
+	CHECK(!strcmp(r.term.name, "screen"));
+	CHECK(pty_seen_screen);
+}
+
+/* A signal during the probe does not end it. */
+static void test_probe_eintr(void)
+{
+	struct probe_result r;
+
+	pty_signals = true;
+	PROBE_ON_PTY("\033]11;rgb:ffff/ffff/ffff\033\\"
+		     "\033[?62;22c", "30000", &r);
+	pty_signals = false;
+	CHECK(r.term.flags & FYPAL_TERM_ANSWERED);
+	CHECK((r.term.flags & FYPAL_TERM_BACKGROUND) &&
+	      r.term.background == 0xffffff);
+}
+
+/* A terminal that answers only DA1 supports nothing else; no waiting. */
+static void test_probe_da1_only(void)
+{
+	struct probe_result r;
+
+	PROBE_ON_PTY("\033[?2026;0$y\033[?1;2c", "30000", &r);
+	CHECK(r.term.flags & FYPAL_TERM_ANSWERED);
+	CHECK(!(r.term.flags & (FYPAL_TERM_BACKGROUND | FYPAL_TERM_SYNC |
+				FYPAL_TERM_KITTY_KEYS | FYPAL_TERM_SIXEL)));
+	CHECK(r.ms < 10000);
+}
+
+/* Keys typed between the replies are kept, in order. */
+static void test_probe_input(void)
+{
+	struct probe_result r;
+
+	PROBE_ON_PTY("ab\033]11;rgb:0000/0000/0000\033\\\033[A\033[?62c",
+		     "30000", &r);
+	CHECK(r.term.flags & FYPAL_TERM_ANSWERED);
+	CHECK(r.term.flags & FYPAL_TERM_BACKGROUND);
+	CHECK(r.term.background == 0);
+	CHECK(r.input_len == 5 && !memcmp(r.input, "ab\033[A", 5));
+}
+
+/* A terminal that does not answer ends the probe at the time limit. */
+static void test_probe_silent(void)
+{
+	struct probe_result r;
+
+	PROBE_ON_PTY("x\033", "300", &r);
+	CHECK(r.term.flags & FYPAL_TERM_PROBED);
+	CHECK(!(r.term.flags & FYPAL_TERM_ANSWERED));
+	CHECK(r.input_len == 2 && !memcmp(r.input, "x\033", 2));
+}
+
+#else
+
+static void test_probe_answer(void) { }
+static void test_probe_graphics(void) { }
+static void test_probe_modes(void) { }
+static void test_probe_screen(void) { }
+static void test_probe_eintr(void) { }
+static void test_probe_unknown(void) { }
+static void test_probe_da1_only(void) { }
+static void test_probe_input(void) { }
+static void test_probe_silent(void) { }
+
+#endif
+
+/* The variant of a result: the reported scheme, $COLORFGBG, the background. */
+static void test_term_variant(void)
+{
+	struct fypal_term t = {
+		.flags = FYPAL_TERM_PROBED | FYPAL_TERM_ANSWERED |
+			 FYPAL_TERM_BACKGROUND,
+		.background = 0xfafafa,
+	};
+	bool known;
+
+	unsetenv("COLORFGBG");
+	CHECK(fypal_term_variant(&t, &known) == FYPAL_VARIANT_LIGHT && known);
+	t.background = 0x101010;
+	CHECK(fypal_term_variant(&t, &known) == FYPAL_VARIANT_DARK && known);
+	setenv("COLORFGBG", "0;15", 1);
+	CHECK(fypal_term_variant(&t, &known) == FYPAL_VARIANT_LIGHT && known);
+	/* a reported scheme wins over $COLORFGBG and the background */
+	t.flags |= FYPAL_TERM_SCHEME;
+	CHECK(fypal_term_variant(&t, &known) == FYPAL_VARIANT_DARK && known);
+	t.flags |= FYPAL_TERM_SCHEME_LIGHT;
+	t.background = 0x000000;
+	setenv("COLORFGBG", "15;0", 1);
+	CHECK(fypal_term_variant(&t, &known) == FYPAL_VARIANT_LIGHT && known);
+	unsetenv("COLORFGBG");
+	CHECK(fypal_term_variant(NULL, &known) == FYPAL_VARIANT_DARK && !known);
+}
+
+/* A probe runs one time; queries are added before it runs. */
+static void test_probe_api(void)
+{
+	struct fypal_probe *pr;
+	char buf[4];
+	size_t len;
+
+	CHECK(fypal_probe_add_query(NULL, "x", 1) == -1);
+	CHECK(fypal_probe_run(NULL, -1) == -1);
+	CHECK(fypal_probe_result(NULL) == NULL);
+	CHECK(fypal_probe_take_input(NULL, buf, sizeof(buf)) == 0);
+	CHECK(fypal_probe_unknown_count(NULL) == 0);
+	CHECK(fypal_probe_unknown(NULL, 0, &len) == NULL);
+	fypal_probe_destroy(NULL);
+
+	pr = fypal_probe_create();
+	CHECK(pr != NULL);
+	CHECK(fypal_probe_add_query(pr, NULL, 1) == -1);
+	CHECK(fypal_probe_add_query(pr, "\033[?996n", 7) == 0);
+	/* no terminal: nothing is sent and the result has no flags */
+	setenv("TERM", "dumb", 1);
+	CHECK(fypal_probe_run(pr, -1) == 0);
+	CHECK(fypal_probe_result(pr)->flags == 0);
+	CHECK(fypal_probe_run(pr, -1) == -1);
+	CHECK(fypal_probe_add_query(pr, "\033[c", 3) == -1);
+	CHECK(fypal_probe_take_input(pr, buf, sizeof(buf)) == 0);
+	CHECK(fypal_probe_unknown(pr, 0, &len) == NULL);
+	fypal_probe_destroy(pr);
+}
+
 static const struct {
 	const char *name;
 	void (*fn)(void);
@@ -999,6 +1417,17 @@ static const struct {
 	{ "role_invalidate", test_role_invalidate },
 	{ "role_style_sgr", test_role_style_sgr },
 	{ "role_many", test_role_many },
+	{ "probe_answer", test_probe_answer },
+	{ "probe_graphics", test_probe_graphics },
+	{ "probe_modes", test_probe_modes },
+	{ "probe_unknown", test_probe_unknown },
+	{ "probe_screen", test_probe_screen },
+	{ "probe_eintr", test_probe_eintr },
+	{ "probe_da1_only", test_probe_da1_only },
+	{ "probe_input", test_probe_input },
+	{ "probe_silent", test_probe_silent },
+	{ "term_variant", test_term_variant },
+	{ "probe_api", test_probe_api },
 };
 
 int main(int argc, char *argv[])

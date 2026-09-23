@@ -42,6 +42,17 @@ set(_fypal_tests
     glyph_api
     glyph_errors
     ember_glyphs
+    probe_answer
+    probe_graphics
+    probe_modes
+    probe_unknown
+    probe_screen
+    probe_eintr
+    probe_da1_only
+    probe_input
+    probe_silent
+    term_variant
+    probe_api
 )
 
 foreach(_t ${_fypal_tests})
