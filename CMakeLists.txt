@@ -48,7 +48,9 @@ endif()
 
 set(ASAN_C_FLAGS)
 if(ENABLE_ASAN)
+    # an undefined-behaviour report fails the test instead of only printing
     set(ASAN_C_FLAGS -fsanitize=address -fsanitize=undefined
+                     -fno-sanitize-recover=undefined
                      -fno-omit-frame-pointer)
 endif()
 
