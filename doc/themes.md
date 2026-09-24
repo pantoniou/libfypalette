@@ -195,7 +195,8 @@ chroma (`ramp.chroma`, 0.008). Only the lightness changes:
 | token | dark L | light L | job |
 |---|---|---|---|
 | ground | 0.16 | 0.98 | the background |
-| raise | 0.20 | 0.95 | fenced blocks, node fills, cards |
+| raise | 0.20 | 0.95 | fenced blocks, node fills |
+| card | 0.24 | 0.90 | user message cards |
 | rule | 0.26 | 0.88 | borders, table grid |
 | faint | 0.48 | 0.62 | what the reader may skip |
 | dim | 0.68 | 0.44 | working text: arguments, output |

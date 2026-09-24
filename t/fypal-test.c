@@ -774,8 +774,13 @@ static void test_role_caps(void)
 	CHECK(!strcmp(fypal_ctx_on(ctx, "md.link"), "\033[4;96m"));
 	CHECK(!strcmp(fypal_ctx_off(ctx, "md.link"), "\033[24;39m"));
 	CHECK(!strcmp(fypal_ctx_on(ctx, "md.quote"), "\033[39m"));
-	/* a wash has no 16 colour form */
-	CHECK(!strcmp(fypal_ctx_on(ctx, "diff.add"), ""));
+	/* Diff rows keep their sign on terminals with only 16 colours. */
+	CHECK(!strcmp(fypal_ctx_on(ctx, "diff.add"), "\033[42m"));
+	CHECK(!strcmp(fypal_ctx_on(ctx, "diff.del"), "\033[41m"));
+	fypal_ctx_set_variant(ctx, FYPAL_VARIANT_LIGHT);
+	CHECK(!strcmp(fypal_ctx_on(ctx, "diff.add"), "\033[42m"));
+	CHECK(!strcmp(fypal_ctx_on(ctx, "diff.del"), "\033[41m"));
+	fypal_ctx_set_variant(ctx, FYPAL_VARIANT_DARK);
 
 	caps.depth = FYPAL_DEPTH_NONE;
 	caps.attrs = 0;

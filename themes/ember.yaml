@@ -40,6 +40,7 @@ dark:
     # the ramp steps up from the ground
     l.ground: 0.16
     l.raise: l.ground + 0.04
+    l.card: l.ground + 0.08
     l.rule: l.ground + 0.10
     l.faint: l.ground + 0.32
     l.dim: l.ground + 0.52
@@ -53,7 +54,7 @@ dark:
     # code sits one chroma step under the prose around it
     syntax.l: 0.72
     syntax.c: 0.07
-    wash: 0.06
+    wash: 0.58
     # what holds the keys stands on a wash of blue: you act there
     wash.focus: 0.24
     bright.l: ring.l + 0.08
@@ -79,8 +80,8 @@ dark:
     syn_number: 11
     syn_function: 12
     syn_preproc: 1
-    wash_add: none
-    wash_del: none
+    wash_add: 2
+    wash_del: 1
     wash_focus: none
   terminal16:
     0: raise
@@ -92,6 +93,7 @@ light:
     # the ramp steps down from the ground
     l.ground: 0.98
     l.raise: l.ground - 0.03
+    l.card: l.ground - 0.08
     l.rule: l.ground - 0.10
     l.faint: l.ground - 0.36
     l.dim: l.ground - 0.54
@@ -102,7 +104,7 @@ light:
     strong.c: 0.14
     syntax.l: 0.50
     syntax.c: 0.08
-    wash: 0.04
+    wash: 0.32
     wash.focus: 0.10
     bright.l: ring.l - 0.08
   ansi16:
@@ -127,8 +129,8 @@ light:
     syn_number: 3
     syn_function: 4
     syn_preproc: 1
-    wash_add: none
-    wash_del: none
+    wash_add: 2
+    wash_del: 1
     wash_focus: none
   terminal16:
     0: ink
@@ -138,6 +140,7 @@ light:
 colors:
   ground: oklch(l.ground, ramp.chroma, ramp.hue)
   raise: oklch(l.raise, ramp.chroma, ramp.hue)
+  card: oklch(l.card, ramp.chroma, ramp.hue)
   rule: oklch(l.rule, ramp.chroma, ramp.hue)
   faint: oklch(l.faint, ramp.chroma, ramp.hue)
   dim: oklch(l.dim, ramp.chroma, ramp.hue)
@@ -246,7 +249,7 @@ roles:
 
   user:
     fg: blue
-    card: {fg: ink, bg: raise}
+    card: {fg: ink, bg: card}
 
   reasoning:
     fg: violet
@@ -282,7 +285,7 @@ roles:
   # markdown: headings use weight, not hue, except H2
   md:
     # a whole document on a card: the bubble of the user's own words
-    card: {fg: ink, bg: raise}
+    card: {fg: ink, bg: card}
     heading:
       fg: ink
       attrs: [bold]
