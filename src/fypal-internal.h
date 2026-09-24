@@ -124,6 +124,8 @@ struct fypal_role {
 struct fypal_ctx {
 	enum fypal_variant variant;
 	struct fypal_caps caps;
+	double surface_contrast;
+	enum fypal_surface_scope surface_scope;
 
 	struct fypal_param **params;
 	size_t nparams;
@@ -189,6 +191,8 @@ int fypal_ctx_color_params_(const struct fypal_ctx *ctx,
 int fypal_ctx_define_role_fields_(struct fypal_ctx *ctx, const char *name,
 				  const char *fields, const char *where);
 void fypal_ctx_roles_destroy_(struct fypal_ctx *ctx);
+/* Whether a defined role uses this colour as its effective background. */
+bool fypal_ctx_background_uses_(const struct fypal_ctx *ctx, size_t index);
 
 /* A dot-separated name of roles and glyphs: components of letters, digits,
  * '_' and '-'. */

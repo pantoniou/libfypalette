@@ -148,6 +148,28 @@ const struct fypal_caps *fypal_ctx_caps(const struct fypal_ctx *ctx)
 	return ctx ? &ctx->caps : NULL;
 }
 
+void fypal_ctx_set_surface_contrast(struct fypal_ctx *ctx, double ratio)
+{
+	if (!ctx)
+		return;
+	if (!isfinite(ratio) || ratio < 1.0)
+		ratio = 0;
+	if (ratio > 21.0)
+		ratio = 21.0;
+	ctx->surface_contrast = ratio;
+	fypal_ctx_changed_(ctx);
+}
+
+void fypal_ctx_set_surface_scope(struct fypal_ctx *ctx,
+				 enum fypal_surface_scope scope)
+{
+	if (!ctx)
+		return;
+	ctx->surface_scope = scope == FYPAL_SURFACE_ALL ? FYPAL_SURFACE_ALL :
+							FYPAL_SURFACE_SELECTED;
+	fypal_ctx_changed_(ctx);
+}
+
 /* A parameter or colour name: an identifier that may contain dots. */
 static bool def_name_valid(const char *name, size_t len)
 {
@@ -927,6 +949,73 @@ static uint32_t eval_color(struct eval *e)
 	return FYPAL_RGB_INVALID;
 }
 
+/* The derived colours remain the sole source for roles and SGR output. */
+static bool surface_color_selected(const struct fypal_ctx *ctx, size_t index)
+{
+	static const char *const names[] = { "card", "wash_add", "wash_del" };
+	size_t i;
+
+	if (ctx->surface_scope == FYPAL_SURFACE_SELECTED) {
+		for (i = 0; i < N_ELEMENTS(names); i++)
+			if (!strcmp(ctx->colors[index]->def.name, names[i]))
+				return true;
+		return false;
+	}
+	return fypal_ctx_background_uses_(ctx, index);
+}
+
+static void surface_contrast_adjust(struct fypal_ctx *ctx)
+{
+	struct fypal_color *ground, *c;
+	struct fypal_lch lch;
+	uint32_t rgb, base;
+	ssize_t index;
+	double low, high, mid, ratio;
+	size_t i;
+	int step;
+
+	if (!ctx->surface_contrast || ctx->caps.depth < FYPAL_DEPTH_256)
+		return;
+	index = color_index(ctx, "ground", 6);
+	if (index < 0)
+		return;
+	ground = ctx->colors[index];
+	base = ground->rgb;
+	if (ctx->caps.depth == FYPAL_DEPTH_256)
+		base = fypal_xterm_to_rgb(ground->xterm256);
+	for (i = 0; i < ctx->ncolors; i++) {
+		if ((ssize_t)i == index || !surface_color_selected(ctx, i))
+			continue;
+		c = ctx->colors[i];
+		if (c->rgb == FYPAL_RGB_INVALID)
+			continue;
+		rgb = c->rgb;
+		if (ctx->caps.depth == FYPAL_DEPTH_256)
+			rgb = fypal_xterm_to_rgb(c->xterm256);
+		if (fypal_contrast(base, rgb) >= ctx->surface_contrast)
+			continue;
+		lch = fypal_lab_to_lch(fypal_rgb_to_lab(c->rgb));
+		low = lch.L;
+		high = ctx->variant == FYPAL_VARIANT_LIGHT ? 0.0 : 1.0;
+		/* Find the first representable lightness that meets the ratio. */
+		for (step = 0; step < 24; step++) {
+			mid = (low + high) / 2.0;
+			lch.L = mid;
+			rgb = fypal_lch_to_rgb(lch);
+			if (ctx->caps.depth == FYPAL_DEPTH_256)
+				rgb = fypal_xterm_to_rgb(fypal_rgb_to_xterm256(rgb));
+			ratio = fypal_contrast(base, rgb);
+			if (ratio >= ctx->surface_contrast)
+				high = mid;
+			else
+				low = mid;
+		}
+		lch.L = high;
+		c->rgb = fypal_lch_to_rgb(lch);
+		c->xterm256 = fypal_rgb_to_xterm256(c->rgb);
+	}
+}
+
 static int ctx_derive(struct fypal_ctx *ctx, bool force)
 {
 	const char *expr, *where;
@@ -978,6 +1067,8 @@ static int ctx_derive(struct fypal_ctx *ctx, bool force)
 		else
 			c->ansi = fypal_rgb_to_ansi16(c->rgb);
 	}
+
+	surface_contrast_adjust(ctx);
 
 	for (i = 0; i < 16; i++) {
 		ctx->term16_rgb[i] = FYPAL_RGB_INVALID;

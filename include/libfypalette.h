@@ -383,6 +383,18 @@ FYPAL_EXPORT void fypal_ctx_set_caps(struct fypal_ctx *ctx,
 				     const struct fypal_caps *caps);
 FYPAL_EXPORT const struct fypal_caps *fypal_ctx_caps(const struct fypal_ctx *ctx);
 
+enum fypal_surface_scope {
+	FYPAL_SURFACE_SELECTED,	/* card and diff washes */
+	FYPAL_SURFACE_ALL,	/* every colour used as a role background */
+};
+
+/* The ratio is WCAG contrast against the theme ground; zero disables it.
+ * The selected scope adjusts card and diff washes only. */
+FYPAL_EXPORT void fypal_ctx_set_surface_contrast(struct fypal_ctx *ctx,
+						 double ratio);
+FYPAL_EXPORT void fypal_ctx_set_surface_scope(struct fypal_ctx *ctx,
+					      enum fypal_surface_scope scope);
+
 /*
  * Define statements through the API, with the meaning of the theme
  * statements. Each returns 0, or -1 with the cause in fypal_ctx_error().

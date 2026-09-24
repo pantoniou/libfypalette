@@ -142,6 +142,20 @@ static void resolve_raw(const struct fypal_ctx *ctx,
 	out->attrs_clear = 0;
 }
 
+bool fypal_ctx_background_uses_(const struct fypal_ctx *ctx, size_t index)
+{
+	struct fypal_style style;
+	size_t i;
+
+	for (i = 0; i < ctx->nroles; i++) {
+		resolve_raw(ctx, ctx->roles[i], &style, 0);
+		if (FYPAL_COLOR_IS_REF(style.bg) &&
+		    FYPAL_COLOR_REF_INDEX(style.bg) == index)
+			return true;
+	}
+	return false;
+}
+
 int fypal_ctx_define_role_style(struct fypal_ctx *ctx, const char *name,
 				const struct fypal_style *style,
 				const char *base)
