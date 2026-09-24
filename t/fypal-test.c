@@ -556,6 +556,68 @@ static void test_ember_contrast(void)
 	fypal_ctx_destroy(ctx);
 }
 
+static void test_ember_surface_contrast(void)
+{
+	struct fypal_caps caps = { .depth = FYPAL_DEPTH_256,
+				   .attrs = FYPAL_ATTR_ALL };
+	static const char *const names[] = {
+		"card", "wash_add", "wash_del",
+	};
+	struct fypal_ctx *ctx;
+	uint32_t ground, color;
+	char buf[64];
+	size_t i;
+	int v, index;
+
+	ctx = ember(&caps);
+	for (v = FYPAL_VARIANT_DARK; v <= FYPAL_VARIANT_LIGHT; v++) {
+		fypal_ctx_set_variant(ctx, (enum fypal_variant)v);
+		fypal_ctx_set_surface_contrast(ctx, 1.5);
+		ground = fypal_ctx_color(ctx, "ground");
+		ground = fypal_xterm_to_rgb(fypal_rgb_to_xterm256(ground));
+		for (i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+			color = fypal_ctx_color(ctx, names[i]);
+			index = fypal_rgb_to_xterm256(color);
+			CHECK(fypal_contrast(ground,
+					fypal_xterm_to_rgb(index)) >= 1.49);
+		}
+	}
+	fypal_ctx_set_surface_contrast(ctx, 0);
+	fypal_ctx_set_variant(ctx, FYPAL_VARIANT_DARK);
+	CHECK(fypal_ctx_color(ctx, "card") != FYPAL_RGB_INVALID);
+	caps.depth = FYPAL_DEPTH_16;
+	fypal_ctx_set_caps(ctx, &caps);
+	fypal_ctx_set_surface_contrast(ctx, 1.5);
+	fypal_ctx_color_sgr(ctx, "wash_add", FYPAL_LAYER_BG,
+			    buf, sizeof(buf));
+	CHECK(!strcmp(buf, "\033[42m"));
+	fypal_ctx_destroy(ctx);
+}
+
+static void test_all_surface_contrast(void)
+{
+	struct fypal_caps caps = { .depth = FYPAL_DEPTH_TRUECOLOR,
+				   .attrs = FYPAL_ATTR_ALL };
+	struct fypal_ctx *ctx;
+	uint32_t ground, code, text, card;
+
+	ctx = ember(&caps);
+	fypal_ctx_set_surface_contrast(ctx, 1.5);
+	ground = fypal_ctx_color(ctx, "ground");
+	code = fypal_ctx_color(ctx, "raise");
+	text = fypal_ctx_color(ctx, "ink");
+	card = fypal_ctx_color(ctx, "card");
+	CHECK(fypal_contrast(ground, code) < 1.5);
+	CHECK(fypal_contrast(ground, card) >= 1.49);
+	fypal_ctx_set_surface_scope(ctx, FYPAL_SURFACE_ALL);
+	code = fypal_ctx_color(ctx, "raise");
+	CHECK(fypal_contrast(ground, code) >= 1.49);
+	CHECK(fypal_ctx_color(ctx, "ink") == text);
+	fypal_ctx_set_surface_scope(ctx, FYPAL_SURFACE_SELECTED);
+	CHECK(fypal_contrast(ground, fypal_ctx_color(ctx, "raise")) < 1.5);
+	fypal_ctx_destroy(ctx);
+}
+
 static void test_ember_focus(void)
 {
 	static const char *const text[] = {
@@ -1413,6 +1475,8 @@ static const struct {
 	{ "ember_ramp", test_ember_ramp },
 	{ "ember_contrast", test_ember_contrast },
 	{ "ember_focus", test_ember_focus },
+	{ "ember_surface_contrast", test_ember_surface_contrast },
+	{ "all_surface_contrast", test_all_surface_contrast },
 	{ "ember_ground", test_ember_ground },
 	{ "role_lookup", test_role_lookup },
 	{ "role_fallback", test_role_fallback },
