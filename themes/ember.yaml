@@ -190,8 +190,8 @@ glyphs:
   gutter:
     user: {utf: "▌", ascii: ">"}
     reasoning: {utf: "▏", ascii: ":"}
-    # the tool call: the mark is also the blinker of a call that runs
-    tool: {utf: "→", ascii: "->"}
+    # The transcript gutter uses the same mark as an active call.
+    tool: {utf: "●", ascii: "*"}
     result: {utf: "⎿", ascii: "`-"}
     system: {utf: "∷", ascii: "::"}
     ask: "?"
@@ -212,15 +212,14 @@ glyphs:
       vertical: {utf: "│", ascii: "|"}
       horizontal: {utf: "─", ascii: "-"}
       cross: {utf: "┼", ascii: "+"}
-  # the state of a call is the arrow of its gutter: it blinks while the call
-  # runs, frame by frame, and stays when the call ends
+  # A pending call blinks between a circle and a blank cell.
   tool:
     pending:
-      utf: "→"
-      ascii: "->"
+      utf: "●"
+      ascii: "*"
       1: " "
-    ok: {utf: "→", ascii: "->"}
-    fail: {utf: "→", ascii: "->"}
+    ok: {utf: "●", ascii: "*"}
+    fail: {utf: "●", ascii: "*"}
     cause: {utf: "✖", ascii: "x"}
   elision: {utf: "⋯", ascii: "..."}
   pane:
