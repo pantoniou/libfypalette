@@ -570,6 +570,18 @@ The context keeps both escapes in the role. A change to the context (a load,
 a definition, the variant, or the capabilities) makes them stale, and the next
 query makes them again.
 
+### 7.3 Opt-in surface contrast
+
+`fypal_ctx_set_surface_contrast(ctx, ratio)` adjusts the `card`, `wash_add`
+and `wash_del` colours against `ground` after the theme is evaluated. A ratio
+of zero disables it. The adjustment changes OKLCH lightness and keeps hue and
+chroma. It checks the final xterm colour when depth is 256. At 16 colours,
+the theme's `ansi16` entries stay in control. The caller enables this option
+for Ember; other themes keep their original colours.
+`fypal_ctx_set_surface_scope(ctx, FYPAL_SURFACE_ALL)` extends the adjustment
+to every colour used as a role background, including inherited backgrounds.
+The default `FYPAL_SURFACE_SELECTED` scope leaves other surfaces unchanged.
+
 ### 7.3 Degradation
 
 | depth | a colour becomes |
@@ -586,8 +598,8 @@ The 16 colour form is policy, so the theme states it in `ansi16`. Ember maps
 each hue to its bright ANSI colour on a dark ground and to its normal colour
 on a light ground. Green and coral use the normal pair on both, because
 without the chroma step they must stay different from the bright hues.
-`default` gives `39` or `49`; `none` gives no escape, which is right for a
-background that has no 16 colour form, such as a diff wash.
+`default` gives `39` or `49`; `none` gives no escape for a background
+without a 16 colour form. Ember diff rows use explicit red and green forms.
 
 An attribute that the terminal does not draw is removed. `undercurl` becomes
 `underline` on a terminal without the curl. `ul` is removed without
