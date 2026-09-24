@@ -1025,13 +1025,17 @@ static void test_ember_glyphs(void)
 	ctx = ember(NULL);
 	CHECK(!fypal_ctx_param(ctx, "gutter.cols", &cols) && cols == 3.0);
 	CHECK(!strcmp(fypal_ctx_param_string(ctx, "md.code.rules"), "bubble-raise-faint"));
-	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool", false), "\u2192"));
-	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool", true), "->"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool", false), "\u25cf"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.tool", true), "*"));
 	CHECK(!strcmp(fypal_ctx_glyph(ctx, "gutter.result", true), "`-"));
 	CHECK(!strcmp(fypal_ctx_glyph(ctx, "md.bullet", false), "\u2022"));
 	CHECK(!strcmp(fypal_ctx_glyph(ctx, "md.task.open", true), "[ ]"));
-	CHECK(!strcmp(fypal_ctx_glyph(ctx, "tool.pending", false), "\u2192"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "tool.pending", false), "\u25cf"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "tool.pending.1", false), " "));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "tool.pending", true), "*"));
 	CHECK(!strcmp(fypal_ctx_glyph(ctx, "tool.pending.1", true), " "));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "tool.ok", false), "\u25cf"));
+	CHECK(!strcmp(fypal_ctx_glyph(ctx, "tool.fail", false), "\u25cf"));
 	/* a frame the theme does not define answers with frame 0 */
 	CHECK(fypal_ctx_glyph(ctx, "tool.pending.2", false) ==
 	      fypal_ctx_glyph(ctx, "tool.pending", false));
