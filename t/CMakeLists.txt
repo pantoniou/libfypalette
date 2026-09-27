@@ -11,6 +11,7 @@ set(_fypal_tests
     lch_reference
     gamut_map
     xterm256
+    xterm256_hue
     ansi16
     contrast
     sgr_rgb

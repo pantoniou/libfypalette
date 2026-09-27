@@ -150,6 +150,45 @@ static void test_xterm256(void)
 	CHECK(fypal_xterm_to_rgb(256) == FYPAL_RGB_INVALID);
 }
 
+/* The distance of two hue angles in degrees, 0 to 180. */
+static double hue_distance(double a, double b)
+{
+	double d;
+
+	d = fmod(fabs(a - b), 360.0);
+	return d > 180.0 ? 360.0 - d : d;
+}
+
+/*
+ * A coloured source keeps its hue at 256 colours: a dark diff wash does not
+ * become a grey or an olive of the cube.
+ */
+static void test_xterm256_hue(void)
+{
+	static const uint32_t rgb[] = {
+		0x476f48,	/* the add wash over aubergine */
+		0x6c3834,	/* the delete wash over black */
+		0x2d542f,	/* the add wash over black */
+		0x89524d,	/* the delete wash over aubergine */
+	};
+	struct fypal_lch src, got;
+	size_t i;
+
+	for (i = 0; i < sizeof(rgb) / sizeof(rgb[0]); i++) {
+		src = fypal_lab_to_lch(fypal_rgb_to_lab(rgb[i]));
+		got = fypal_lab_to_lch(fypal_rgb_to_lab(
+			fypal_xterm_to_rgb(fypal_rgb_to_xterm256(rgb[i]))));
+		if (got.C < 0.3 * src.C || hue_distance(got.h, src.h) > 20) {
+			fprintf(stderr, "#%06x at 256 colours: C %.3f h %.1f, "
+				"source C %.3f h %.1f\n", rgb[i], got.C, got.h,
+				src.C, src.h);
+			failures++;
+		}
+	}
+	/* a neutral colour still takes the nearest grey */
+	CHECK(fypal_rgb_to_xterm256(0x808080) == 244);
+}
+
 static void test_ansi16(void)
 {
 	CHECK(fypal_rgb_to_ansi16(0xff0000) == 9);
@@ -735,18 +774,10 @@ static void test_ember_ground(void)
 	fypal_ctx_destroy(ctx);
 }
 
-/* The distance of two hue angles in degrees, 0 to 180. */
-static double hue_distance(double a, double b)
-{
-	double d;
-
-	d = fmod(fabs(a - b), 360.0);
-	return d > 180.0 ? 360.0 - d : d;
-}
 
 /*
- * A diff wash keeps the hue of its sign over any ground: a tinted ground,
- * such as the aubergine of a GNOME terminal, does not turn an added row grey.
+ * A wash keeps its hue over any ground: a tinted ground, such as the
+ * aubergine of a GNOME terminal, does not turn an added row grey.
  */
 static void test_ember_wash_hue(void)
 {
@@ -757,9 +788,12 @@ static void test_ember_wash_hue(void)
 	static const struct {
 		const char *name;
 		double hue;
+		double chroma;
 	} washes[] = {
-		{ "wash_add", 145 },
-		{ "wash_del", 25 },
+		{ "wash_add", 145, 0.03 },
+		{ "wash_del", 25, 0.03 },
+		/* a light variant washes focus with little blue */
+		{ "wash_focus", 250, 0.01 },
 	};
 	struct fypal_caps caps = { .depth = FYPAL_DEPTH_TRUECOLOR,
 				   .attrs = FYPAL_ATTR_ALL };
@@ -784,7 +818,7 @@ static void test_ember_wash_hue(void)
 				for (j = 0; j < sizeof(washes) / sizeof(washes[0]); j++) {
 					wash = fypal_ctx_color(ctx, washes[j].name);
 					lch = fypal_lab_to_lch(fypal_rgb_to_lab(wash));
-					if (lch.C < 0.03 ||
+					if (lch.C < washes[j].chroma ||
 					    hue_distance(lch.h, washes[j].hue) > 12) {
 						fprintf(stderr, "%s over #%06x: "
 							"C %.3f h %.1f\n",
@@ -1525,6 +1559,7 @@ static const struct {
 	{ "lch_reference", test_lch_reference },
 	{ "gamut_map", test_gamut_map },
 	{ "xterm256", test_xterm256 },
+	{ "xterm256_hue", test_xterm256_hue },
 	{ "ansi16", test_ansi16 },
 	{ "contrast", test_contrast },
 	{ "sgr_rgb", test_sgr_rgb },
