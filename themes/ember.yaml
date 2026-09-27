@@ -35,6 +35,12 @@ params:
   hue.green: 145     # added, passed, exit 0
   hue.coral: 25      # removed, failed, denied, interrupted
 
+  # a diff wash has the lightness and chroma of `wash` of a strong colour
+  # mixed into the ground, and keeps the hue of that colour: a tinted ground
+  # does not turn it grey
+  wash.l: l.ground + wash * (strong.l - l.ground)
+  wash.c: wash * strong.c
+
 dark:
   params:
     # the ramp steps up from the ground
@@ -164,8 +170,8 @@ colors:
   syn_preproc: oklch(syntax.l, syntax.c, hue.coral)
 
   # the wash carries the sign of a diff row, so its tokens keep their syntax
-  wash_add: mix(ground, green_strong, wash)
-  wash_del: mix(ground, coral_strong, wash)
+  wash_add: oklch(wash.l, wash.c, hue.green)
+  wash_del: oklch(wash.l, wash.c, hue.coral)
   # the ground of what holds the keys: the prompt, a picker, a focused tile
   wash_focus: mix(ground, blue, wash.focus)
 
