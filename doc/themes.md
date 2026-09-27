@@ -234,10 +234,13 @@ angle changes, so no hue is louder than another. Each hue has one job:
   ring. Code is thus quieter than the transcript around it. Each syntax token
   takes the angle of a ring hue: keywords violet, types cyan, strings green,
   numbers gold, functions blue, preprocessor coral.
-- `wash_add` and `wash_del` mix `wash` (6% dark, 4% light) of a consequence
-  colour into the ground. A diff row takes the wash as its background, so its
-  tokens keep their syntax colours.
-- `wash_focus` mixes `wash.focus` (14% dark, 6% light) of blue into the
+- `wash_add` and `wash_del` take the lightness and chroma of `wash` (58% dark,
+  32% light) of a strong consequence colour mixed into the ground
+  (`wash.l`, `wash.c`), and keep the hue of that colour. A mix in OKLab takes
+  the hue of the ground too: over a tinted ground, such as aubergine, green
+  and its complement cancel and the wash is grey. A diff row takes the wash
+  as its background, so its tokens keep their syntax colours.
+- `wash_focus` mixes `wash.focus` (24% dark, 10% light) of blue into the
   ground. Blue is what you act on, and the wash is the ground of what holds the
   keys: the prompt, a picker and a focused tile take the same colour. Every
   colour that carries text reads on it at 4.5:1. At 16 colours it has no form,
