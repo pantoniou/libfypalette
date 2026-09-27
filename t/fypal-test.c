@@ -735,6 +735,70 @@ static void test_ember_ground(void)
 	fypal_ctx_destroy(ctx);
 }
 
+/* The distance of two hue angles in degrees, 0 to 180. */
+static double hue_distance(double a, double b)
+{
+	double d;
+
+	d = fmod(fabs(a - b), 360.0);
+	return d > 180.0 ? 360.0 - d : d;
+}
+
+/*
+ * A diff wash keeps the hue of its sign over any ground: a tinted ground,
+ * such as the aubergine of a GNOME terminal, does not turn an added row grey.
+ */
+static void test_ember_wash_hue(void)
+{
+	static const uint32_t dark[] = {
+		0x000000, 0x300a24, 0x0d1117, 0x1e1e2e, 0x002b36,
+	};
+	static const uint32_t light[] = { 0xffffff, 0xfdf6e3, 0xeff1f5 };
+	static const struct {
+		const char *name;
+		double hue;
+	} washes[] = {
+		{ "wash_add", 145 },
+		{ "wash_del", 25 },
+	};
+	struct fypal_caps caps = { .depth = FYPAL_DEPTH_TRUECOLOR,
+				   .attrs = FYPAL_ATTR_ALL };
+	struct fypal_ctx *ctx;
+	struct fypal_lch lch;
+	uint32_t rgb, wash;
+	size_t i, j;
+	int v, n, pass;
+
+	ctx = ember(&caps);
+	for (pass = 0; pass < 2; pass++) {
+		/* fyai asks for surface contrast; the hue must survive it */
+		fypal_ctx_set_surface_contrast(ctx, pass ? 1.5 : 0);
+		for (v = FYPAL_VARIANT_DARK; v <= FYPAL_VARIANT_LIGHT; v++) {
+			fypal_ctx_set_variant(ctx, (enum fypal_variant)v);
+			n = v == FYPAL_VARIANT_DARK ?
+				(int)(sizeof(dark) / sizeof(dark[0])) :
+				(int)(sizeof(light) / sizeof(light[0]));
+			for (i = 0; i < (size_t)n; i++) {
+				rgb = v == FYPAL_VARIANT_DARK ? dark[i] : light[i];
+				CHECK(!fypal_ctx_set_ground(ctx, rgb));
+				for (j = 0; j < sizeof(washes) / sizeof(washes[0]); j++) {
+					wash = fypal_ctx_color(ctx, washes[j].name);
+					lch = fypal_lab_to_lch(fypal_rgb_to_lab(wash));
+					if (lch.C < 0.03 ||
+					    hue_distance(lch.h, washes[j].hue) > 12) {
+						fprintf(stderr, "%s over #%06x: "
+							"C %.3f h %.1f\n",
+							washes[j].name, rgb,
+							lch.C, lch.h);
+						failures++;
+					}
+				}
+			}
+		}
+	}
+	fypal_ctx_destroy(ctx);
+}
+
 static void test_role_lookup(void)
 {
 	struct fypal_ctx *ctx;
@@ -1482,6 +1546,7 @@ static const struct {
 	{ "ember_surface_contrast", test_ember_surface_contrast },
 	{ "all_surface_contrast", test_all_surface_contrast },
 	{ "ember_ground", test_ember_ground },
+	{ "ember_wash_hue", test_ember_wash_hue },
 	{ "role_lookup", test_role_lookup },
 	{ "role_fallback", test_role_fallback },
 	{ "role_inherit", test_role_inherit },

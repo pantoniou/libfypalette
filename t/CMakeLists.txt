@@ -32,6 +32,7 @@ set(_fypal_tests
     ember_surface_contrast
     all_surface_contrast
     ember_ground
+    ember_wash_hue
     role_lookup
     role_fallback
     role_inherit
