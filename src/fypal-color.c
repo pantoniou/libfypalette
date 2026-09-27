@@ -227,12 +227,34 @@ uint32_t fypal_xterm_to_rgb(int index)
 	return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
 }
 
-static int nearest_index(uint32_t rgb, int first, int last)
+/*
+ * A colour of at least FYPAL_HUE_KEEP_C chroma is quantised only to entries
+ * within FYPAL_HUE_KEEP_DEG of its hue that keep FYPAL_HUE_KEEP_RATIO of its
+ * chroma, when the range has one. The xterm cube is coarse at low lightness:
+ * the nearest entry by distance alone can be a grey or a neighbouring hue,
+ * and a diff wash then loses the sign that it carries.
+ */
+#define FYPAL_HUE_KEEP_C	0.03
+#define FYPAL_HUE_KEEP_DEG	20.0
+#define FYPAL_HUE_KEEP_RATIO	0.3
+
+static double hue_distance(double a, double b)
+{
+	double d;
+
+	d = fmod(fabs(a - b), 360.0);
+	return d > 180.0 ? 360.0 - d : d;
+}
+
+static int nearest_index(uint32_t rgb, int first, int last, bool keep_hue)
 {
 	struct fypal_lab lab = fypal_rgb_to_lab(rgb), x;
-	double best = -1.0, d;
-	int i, bi = first;
+	struct fypal_lch lch, xl;
+	double best = -1.0, kept = -1.0, d;
+	int i, bi = first, ki = -1;
 
+	lch = fypal_lab_to_lch(lab);
+	keep_hue = keep_hue && lch.C >= FYPAL_HUE_KEEP_C;
 	for (i = first; i <= last; i++) {
 		x = fypal_rgb_to_lab(fypal_xterm_to_rgb(i));
 		d = (lab.L - x.L) * (lab.L - x.L) + (lab.a - x.a) * (lab.a - x.a) +
@@ -241,18 +263,28 @@ static int nearest_index(uint32_t rgb, int first, int last)
 			best = d;
 			bi = i;
 		}
+		if (!keep_hue)
+			continue;
+		xl = fypal_lab_to_lch(x);
+		if (xl.C < FYPAL_HUE_KEEP_RATIO * lch.C ||
+		    hue_distance(xl.h, lch.h) > FYPAL_HUE_KEEP_DEG)
+			continue;
+		if (kept < 0.0 || d < kept) {
+			kept = d;
+			ki = i;
+		}
 	}
-	return bi;
+	return ki >= 0 ? ki : bi;
 }
 
 int fypal_rgb_to_xterm256(uint32_t rgb)
 {
-	return nearest_index(rgb & 0xffffff, 16, 255);
+	return nearest_index(rgb & 0xffffff, 16, 255, true);
 }
 
 int fypal_rgb_to_ansi16(uint32_t rgb)
 {
-	return nearest_index(rgb & 0xffffff, 0, 15);
+	return nearest_index(rgb & 0xffffff, 0, 15, false);
 }
 
 static int hexval(char c)
