@@ -240,8 +240,9 @@ angle changes, so no hue is louder than another. Each hue has one job:
   the hue of the ground too: over a tinted ground, such as aubergine, green
   and its complement cancel and the wash is grey. A diff row takes the wash
   as its background, so its tokens keep their syntax colours.
-- `wash_focus` mixes `wash.focus` (24% dark, 10% light) of blue into the
-  ground. Blue is what you act on, and the wash is the ground of what holds the
+- `wash_focus` takes the lightness and chroma of `wash.focus` (24% dark, 10%
+  light) of blue mixed into the ground (`focus.l`, `focus.c`), and keeps the
+  hue of blue. Blue is what you act on, and the wash is the ground of what holds the
   keys: the prompt, a picker and a focused tile take the same colour. Every
   colour that carries text reads on it at 4.5:1. At 16 colours it has no form,
   so a renderer marks focus in another way.
@@ -590,9 +591,14 @@ The default `FYPAL_SURFACE_SELECTED` scope leaves other surfaces unchanged.
 | depth | a colour becomes |
 |---|---|
 | truecolor | `38;2;r;g;b` |
-| 256 | `38;5;n`: the nearest of entries 16-255 by OKLab distance |
+| 256 | `38;5;n`: the nearest of entries 16-255 by OKLab distance; a coloured source takes the nearest entry that keeps its hue |
 | 16 | the `ansi16` value of the colour; without one, the nearest of the 16 xterm colours |
 | none | nothing |
+
+A source of at least 0.03 chroma takes only an entry within 20 degrees of its
+hue that keeps 30% of its chroma, if one exists. The cube is coarse at low
+lightness: by distance alone, a dark green wash becomes an olive and a dark
+red wash a grey, and a diff row loses its sign.
 
 The 256 colour search skips entries 0-15. A terminal theme changes those
 entries, so their real values are not known.

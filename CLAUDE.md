@@ -109,7 +109,8 @@ This is the rule that the rest of the design follows.
 - Filter by the capabilities: remove attributes the terminal does not draw,
   degrade `undercurl` to `underline`, drop `ul` without underline colour and
   at 16 colours, and emit no colour at `FYPAL_DEPTH_NONE`.
-- The 256 colour search covers entries 16-255 only.
+- The 256 colour search covers entries 16-255 only. A coloured source takes
+  the nearest entry that keeps its hue; a neutral one, the nearest entry.
 
 ## Tests
 
