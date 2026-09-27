@@ -40,6 +40,9 @@ params:
   # does not turn it grey
   wash.l: l.ground + wash * (strong.l - l.ground)
   wash.c: wash * strong.c
+  # the focus wash keeps the hue of blue in the same way
+  focus.l: l.ground + wash.focus * (ring.l - l.ground)
+  focus.c: wash.focus * ring.c
 
 dark:
   params:
@@ -173,7 +176,7 @@ colors:
   wash_add: oklch(wash.l, wash.c, hue.green)
   wash_del: oklch(wash.l, wash.c, hue.coral)
   # the ground of what holds the keys: the prompt, a picker, a focused tile
-  wash_focus: mix(ground, blue, wash.focus)
+  wash_focus: oklch(focus.l, focus.c, hue.blue)
 
 terminal16:
   1: oklch(strong.l, strong.c, hue.coral)
