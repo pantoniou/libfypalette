@@ -703,6 +703,17 @@ static void test_ember_focus(void)
 	CHECK(style && style->fg == fypal_ctx_color_ref(ctx, "blue"));
 	CHECK(fypal_ctx_glyph(ctx, "pane.edge", false) != NULL);
 	CHECK(fypal_ctx_glyph(ctx, "pane.edge", true) != NULL);
+	/* the item of a list that is about to be taken: a ground and a bar */
+	role = fypal_ctx_role(ctx, "select.row");
+	CHECK(role != NULL);
+	style = role ? fypal_role_style(role) : NULL;
+	CHECK(style && style->bg == fypal_ctx_color_ref(ctx, "wash_focus"));
+	role = fypal_ctx_role(ctx, "select.bar");
+	CHECK(role != NULL);
+	style = role ? fypal_role_style(role) : NULL;
+	CHECK(style && style->fg == fypal_ctx_color_ref(ctx, "blue"));
+	CHECK(fypal_ctx_glyph(ctx, "select.bar", false) != NULL);
+	CHECK(fypal_ctx_glyph(ctx, "select.bar", true) != NULL);
 	fypal_ctx_destroy(ctx);
 }
 
