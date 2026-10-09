@@ -384,6 +384,7 @@ These prefixes are the convention of the fyai renderers:
 | `diff.*` | diff rows and line numbers |
 | `mermaid.*` | diagrams |
 | `pane.*`, `tile.*` | the work pane; `pane.focus` is the ground of what holds the keys, and `pane.edge` marks its edge |
+| `select.*` | the item of a list that the user is about to take; `select.row` is the ground of each of its rows and `select.bar` the colour of the bar at their edge, with the glyph `select.bar` |
 
 Tree-sitter capture names are already dot-separated hierarchies
 (`keyword.control.conditional`), so the lookup fallback maps a precise capture
