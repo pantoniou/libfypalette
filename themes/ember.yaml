@@ -233,6 +233,8 @@ glyphs:
   elision: {utf: "⋯", ascii: "..."}
   pane:
     edge: {utf: "▌", ascii: "|"}
+  select:
+    bar: {utf: "▌", ascii: "|"}
   tile:
     shell: "$"
     agent: "@"
@@ -395,6 +397,12 @@ roles:
     # the edge of what holds the keys: a wash that text reads on is faint
     # over a black or a white ground, and the edge is seen on any ground
     edge: {fg: blue}
+
+  # the item of a list that the user is about to take: a ground over each of
+  # its rows, and a bar at their edge that all of its rows share
+  select:
+    row: {bg: wash_focus}
+    bar: {fg: blue}
 
   tile:
     head:
